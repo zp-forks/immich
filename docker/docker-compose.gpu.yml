@@ -63,6 +63,8 @@ services:
   immich_tf_fastapi:
     container_name: immich_tf_fastapi
     image: tensor_flow_fastapi:1.0.0
+    env_file:
+      - .env
     restart: always
     command: uvicorn app.main:app --proxy-headers --host 0.0.0.0 --port 8000 --reload
     build:

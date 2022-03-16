@@ -8,7 +8,7 @@ services:
       target: development
       dockerfile: ../server/Dockerfile
     entrypoint: ["/bin/sh", "./entrypoint.sh"]
-    # command: npm run start:dev
+    restart: always
     expose:
       - "3000"
     volumes:
@@ -25,12 +25,14 @@ services:
 
   redis:
     container_name: immich_redis
+    restart: always
     image: redis:6.2
     networks:
       - immich_network
 
   database:
     container_name: immich_postgres
+    restart: always
     image: postgres:14
     env_file:
       - .env
@@ -64,6 +66,8 @@ services:
   immich_tf_fastapi:
     container_name: immich_tf_fastapi
     image: tensor_flow_fastapi:1.0.0
+    env_file:
+      - .env
     restart: always
     command: uvicorn app.main:app --proxy-headers --host 0.0.0.0 --port 8000 --reload
     build:

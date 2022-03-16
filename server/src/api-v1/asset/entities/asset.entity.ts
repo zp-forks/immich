@@ -41,6 +41,9 @@ export class AssetEntity {
   @Column({ nullable: true })
   duration: string;
 
+  @Column({ type: 'boolean', default: false })
+  isFaceDetected: boolean;
+
   @OneToOne(() => ExifEntity, (exifEntity) => exifEntity.asset)
   exifInfo: ExifEntity;
 

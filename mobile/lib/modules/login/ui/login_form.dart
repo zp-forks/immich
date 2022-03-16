@@ -125,7 +125,7 @@ class LoginButton extends ConsumerWidget {
             // Resume backup (if enable) then navigate
             ref.watch(backupProvider.notifier).resumeBackup();
             // AutoRouter.of(context).pushNamed("/home-page");
-            AutoRouter.of(context).pushNamed("/tab-controller-page");
+            AutoRouter.of(context).replaceNamed("/tab-controller-page");
           } else {
             ImmichToast.show(
                 context: context,
