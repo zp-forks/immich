@@ -1,6 +1,7 @@
 import os
 from pydantic import BaseModel
-from fastapi import FastAPI
+from fastapi import BackgroundTasks, FastAPI
+from fastapi.concurrency import run_in_threadpool
 
 from .object_detection import object_detection
 from .image_classifier import image_classifier
@@ -10,6 +11,7 @@ from tf2_yolov4.anchors import YOLOV4_ANCHORS
 from tf2_yolov4.model import YOLOv4
 
 import psycopg2
+import psycopg2.extras
 
 HEIGHT, WIDTH = (640, 960)
 
@@ -22,7 +24,6 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_DATABASE_NAME = os.getenv('DB_DATABASE_NAME')
 db_conn = psycopg2.connect(
     f"host=immich_postgres port=5432 dbname={DB_DATABASE_NAME} user={DB_USERNAME} password={DB_PASSWORD}")
-db_cur = db_conn.cursor()
 
 
 app = FastAPI()
@@ -47,6 +48,21 @@ async def test():
     object_detection.run_detection()
 
 
+def send_email(email, message):
+    print("email, password")
+
+
 @app.get("/facialRecognition")
-async def detect_face():
-    facial_recognition.detect_face(db_cur)
+async def detect_face(background_tasks: BackgroundTasks):
+
+    db_cur = db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    db_cur.execute("""
+        select *
+        from assets
+        where "isFaceDetected" = false
+    """)
+    assets = db_cur.fetchall()
+
+    await run_in_threadpool(lambda: facial_recognition.detect_face(assets, db_cur))
+
+    return {"message": "Running Facial Detection In The Background"}
