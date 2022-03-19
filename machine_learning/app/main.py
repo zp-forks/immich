@@ -66,3 +66,10 @@ async def detect_face(background_tasks: BackgroundTasks):
     await run_in_threadpool(lambda: facial_recognition.detect_face(assets, db_cur))
 
     return {"message": "Running Facial Detection In The Background"}
+
+
+@app.get("/facialCluster")
+async def cluster_facial_info():
+    await run_in_threadpool(lambda: facial_recognition.cluster_face())
+
+    return {"message": "Running Facial Clustering In The Background"}
