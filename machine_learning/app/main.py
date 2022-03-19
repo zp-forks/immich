@@ -43,17 +43,8 @@ async def post_root(payload: TagImagePayload):
     return image_classifier.classify_image(image_path=image_path)
 
 
-@app.get("/")
-async def test():
-    object_detection.run_detection()
-
-
-def send_email(email, message):
-    print("email, password")
-
-
 @app.get("/facialRecognition")
-async def detect_face(background_tasks: BackgroundTasks):
+async def detect_face():
 
     db_cur = db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     db_cur.execute("""
@@ -61,6 +52,7 @@ async def detect_face(background_tasks: BackgroundTasks):
         from assets
         where "isFaceDetected" = false
     """)
+
     assets = db_cur.fetchall()
 
     await run_in_threadpool(lambda: facial_recognition.detect_face(assets, db_cur))
