@@ -35,6 +35,9 @@ RUN apt-get install -y --fix-missing \
   python3-numpy \
   software-properties-common \
   zip \
+  ffmpeg \ 
+  libsm6 \ 
+  libxext6 \
   && apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 RUN cd ~ && \
