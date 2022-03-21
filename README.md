@@ -47,8 +47,8 @@ This project is under heavy development, there will be continous functions, feat
 
 # Features
 
-- Upload assets(videos/images).
-- View assets.
+- Upload and view assets(videos/images).
+- Multi-user supported.
 - Quick navigation with drag scroll bar.
 - Auto Backup.
 - Support HEIC/HEIF/AppleProRaw(DNG) Backup.
