@@ -1,0 +1,14 @@
+server/node_modules
+server/dist
+
+microservices/node_modules
+microservices/dist
+
+
+.github
+.idea/
+fastlane/
+design/
+docker/
+machine_learning/
+mobile/
