@@ -11,54 +11,44 @@ EXPOSE 5432
 # Build base Image
 FROM node:16-bullseye-slim as base
 ARG DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update
 RUN apt-get install gcc g++ make cmake python3 python3-pip ffmpeg -y
 
+RUN npm install -g pm2
 
-# Build Server
-FROM base as build_server
+WORKDIR /use/src/app/
 
-WORKDIR /usr/src/immich_server
+# Copy package.json Server
+COPY server/package.json /use/src/app/server/
+COPY server/package-lock.json /use/src/app/server/
 
-COPY server/package.json server/package-lock.json ./
+# Copy package.json Microservice
+COPY microservices/package.json /use/src/app/microservices/
+COPY microservices/package-lock.json /use/src/app/microservices/
 
-RUN npm install
+# Copy Source File
+COPY server/ ./server/
+COPY microservices/ ./microservices/
+COPY ecosystem.config.js ./
 
-COPY server/ .
+# Install packages
+WORKDIR /use/src/app/server/
+RUN npm install && npm run build
 
+WORKDIR /use/src/app/microservices/
+RUN npm install && npm run build
+
+# Expose ports
 EXPOSE 3000
-
-RUN npm run build
-
-# Build Microservice
-FROM base as build_microservices
-
-WORKDIR /usr/src/microservices
-
-COPY microservices/package.json microservices/package-lock.json ./
-
-RUN npm install
-
-COPY microservices/ .
-
 EXPOSE 3001
+EXPOSE 5432
 
-RUN npm run build
+# Start PM2 as PID 1 process
+WORKDIR /use/src/app
+CMD ["pm2-runtime", "ecosystem.config.js"]
 
-# Run all
-FROM base as final
 
-WORKDIR /usr/src/immich
-
-# Add build directory
-COPY --from=build_server /usr/src/immich_server/node_modules /usr/src/immich/server/node_modules
-COPY --from=build_server /usr/src/immich_server/dist /usr/src/immich/server/dist
-COPY --from=build_microservices /usr/src/microservices/node_modules /usr/src/immich/microservices/node_modules
-COPY --from=build_microservices /usr/src/microservices/dist /usr/src/immich/microservices/dist
-
-ENV NODE_ENV=production
-
-CMD ["node", "microservices/dist/main.js"]
 
 
 # Buiold & Run command
