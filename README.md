@@ -31,47 +31,73 @@ Loading ~4000 images/videos
 
 ## Screenshots
 
+### Mobile client
 <p align="left">
-  <img src="design/nsc1.png" width="150" title="Login With Custom URL">
-  <img src="design/nsc2.png" width="150" title="Backup Setting Info">
-  <img src="design/nsc3.png" width="150" title="Multiple seelct">
+  <img src="design/login-screen.png" width="150" title="Login With Custom URL">
+  <img src="design/backup-screen.png" width="150" title="Backup Setting Info">
+  <img src="design/selective-backup-screen.png" width="150" title="Backup Setting Info">
+  <img src="design/home-screen.jpeg" width="150" title="Home Screen">
+  <img src="design/search-screen.jpeg" width="150" title="Curated Search Info">
+  <img src="design/shared-albums.png" width="150" title="Shared Albums">
   <img src="design/nsc6.png" width="150" title="EXIF Info">
+</p>
 
+### Web client
+<p align="center">
+  <img src="design/dashboard_photos.jpeg" width="100%" title="Home Dashboard">
 </p>
 
 # Note
 
 **!! NOT READY FOR PRODUCTION! DO NOT USE TO STORE YOUR ASSETS !!**
 
-This project is under heavy development, there will be continous functions, features and api changes.
+This project is under heavy development, there will be continuous functions, features and api changes.
 
 # Features
 
-- Upload and view assets(videos/images).
+- Upload and view assets (videos/images).
+- Auto Backup.
+- Download asset to local device.
 - Multi-user supported.
 - Quick navigation with drag scroll bar.
-- Auto Backup.
-- Support HEIC/HEIF/AppleProRaw(DNG) Backup.
+- Support HEIC/HEIF Backup.
 - Extract and display EXIF info.
 - Real-time render from multi-device upload event.
 - Image Tagging/Classification based on ImageNet dataset
+- Object detection based on COCO SSD.
 - Search assets based on tags and exif data (lens, make, model, orientation)
-- Upload assets from your local computer/server using [immich cli tools](https://www.npmjs.com/package/immich)
-- [Optional] Reserve geocoding using Mapbox (Generous free-tier of 100,000 search/month)
+- [Optional] Reverse geocoding using Mapbox (Generous free-tier of 100,000 search/month)
 - Show asset's location information on map (OpenStreetMap).
 - Show curated places on the search page
+- Show curated objects on the search page
+- Shared album with users on the same server
+- Selective backup - albums can be included and excluded during the backup process.
+- Web interface is available for administrative tasks (creating new users) and viewing assets on the server - additional features are coming.
 
-# Development
+# System Requirement
 
-You can use docker compose for development, there are several services that compose Immich
+**OS**: Preferred unix-based operating system (Ubuntu, Debian, MacOS...etc). 
 
-1. NestJs
-2. PostgreSQL
-3. Redis
-4. Nginx
-5. TensorFlow and Keras
+I haven't tested with `Docker for Windows` as well as `WSL` on Windows
 
-## Populate .env file
+*Raspberry Pi can be used but `microservices` container has to be comment out in `docker-compose` since TensorFlow has not been supported in Docker image on arm64v7 yet.*
+
+**RAM**: At least 2GB, preffered 4GB.
+
+**Core**: At least 2 cores, preffered 4 cores.
+
+# Getting Started
+
+You can use docker compose for development and testing out the application, there are several services that compose Immich:
+
+1. **NestJs** - Backend of the application
+2. **SvelteKit** - Web frontend of the application
+3. **PostgreSQL** - Main database of the application
+4. **Redis** - For sharing websocket instance between docker instances and background tasks message queue.
+5. **Nginx** - Load balancing and optimized file uploading.
+6. **TensorFlow** - Object Detection and Image Classification.
+
+## Step 1: Populate .env file
 
 Navigate to `docker` directory and run
 
@@ -85,61 +111,151 @@ Notice that if set `ENABLE_MAPBOX` to `true`, you will have to provide `MAPBOX_K
 
 Pay attention to the key `UPLOAD_LOCATION`, this directory must exist and is owned by the user that run the `docker-compose` command below.
 
-To start, run
+**Example**
 
 ```bash
-docker-compose -f ./docker/docker-compose.yml up --build -V
+###################################################################################
+# Database
+###################################################################################
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
+DB_DATABASE_NAME=immich
+
+###################################################################################
+# Upload File Config
+###################################################################################
+UPLOAD_LOCATION=<put-the-path-of-the-upload-folder-here>
+
+###################################################################################
+# JWT SECRET
+###################################################################################
+JWT_SECRET=randomstringthatissolongandpowerfulthatnoonecanguess
+
+###################################################################################
+# MAPBOX
+####################################################################################
+# ENABLE_MAPBOX is either true of false -> if true, you have to provide MAPBOX_KEY
+ENABLE_MAPBOX=false
+MAPBOX_KEY=
+
+###################################################################################
+# WEB
+###################################################################################
+# This is the URL of your vm/server where you host Immich, so that the web frontend
+# know where can it make the request to.
+# For example: If your server IP address is 10.1.11.50, the environment variable will
+# be VITE_SERVER_ENDPOINT=http://10.1.11.50:2283
+VITE_SERVER_ENDPOINT=http://192.168.1.216:2283
+```
+
+## Step 2: Start the server
+
+To **start**, run
+
+```bash
+docker-compose -f ./docker/docker-compose.yml up 
+```
+
+If you have a few thousand photos/videos, I suggest running docker-compose with *scaling* option for the `immich_server` container to handle high I/O load when using fast scrolling.
+
+```bash
+docker-compose -f ./docker/docker-compose.yml up --scale immich-server=5 
+```
+
+To *update* docker-compose with newest image (if you have started the docker-compose previously)
+
+```bash
+docker-compose -f ./docker/docker-compose.yml pull && docker-compose -f ./docker/docker-compose.yml up
 ```
 
 The server will be running at `http://your-ip:2283` through `Nginx`
 
-## Register User
+## Step 3: Register User
 
-Use the command below on your terminal to create user as we don't have user interface for this function yet.
-
-```bash
-curl --location --request POST 'http://your-server-ip:2283/auth/signUp' \
---header 'Content-Type: application/json' \
---data-raw '{
-    "email": "testuser@email.com",
-    "password": "password"
-}'
-```
-
-## Run mobile app
-
-### Android
-
-Download `apk` in release tab and run on your phone. You can follow this guide on how to do that
-
-- [Run APK on Android](https://www.lifewire.com/install-apk-on-android-4177185)
-
-### iOS
-
-You can download the app from Apple AppStore [here](https://apps.apple.com/us/app/immich/id1613945652):
+Access the web interface at `http://your-ip:2285` to register an admin account.
 
 <p align="left">
-  <img src="design/ios-qr-code.png" width="250" title="Apple App Store">
+  <img src="design/admin-registration-form.png" width="300" title="Admin Registration">
 <p/>
+
+Additional accounts on the server can be created by the admin account.
+
+<p align="left">
+  <img src="design/admin-interface.png" width="500" title="Admin User Management">
+<p/>
+
+## Step 4: Run mobile app
+
+The app is distributed on several platforms below.
+
+## F-Droid
+You can get the app on F-droid by clicking the image below.
+
+[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
+    alt="Get it on F-Droid"
+    height="80">](https://f-droid.org/packages/app.alextran.immich)
+
+
+## Android
+
+#### Get the app on Google Play Store [here](https://play.google.com/store/apps/details?id=app.alextran.immich) 
+
+*The App version might be lagging behind the latest release due to the review process.*
+
+<p align="left">
+  <img src="design/google-play-qr-code.png" width="200" title="Google Play Store">
+<p/>
+
+## iOS
+
+#### Get the app on Apple AppStore [here](https://apps.apple.com/us/app/immich/id1613945652):
+
+*The App version might be lagging behind the latest release due to the review process.*
+
+
+<p align="left">
+  <img src="design/ios-qr-code.png" width="200" title="Apple App Store">
+<p/>
+
+
+# Development
+
+The development environment can be started from the root of the project after populating the `.env` file with the command:
+
+```bash
+make dev # required Makefile installed on the system.
+``` 
+
+All servers and web container are hot reload for quick feedback loop.
 
 # Support
 
-If you like the app, find it helpful, and want to support me to offset the cost of publishing to AppStores, you can sponsor the project with [**Github Sponsore**](https://github.com/sponsors/alextran1502).
+If you like the app, find it helpful, and want to support me to offset the cost of publishing to AppStores, you can sponsor the project with [**Github Sponsor**](https://github.com/sponsors/alextran1502), or a one time donation with the Buy Me a coffee link below.
 
-This is also a meaningful way to give me motivation and encounragment to continue working on the app.
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/altran1502)
 
-Cheer! 🎉
+This is also a meaningful way to give me motivation and encouragement to continue working on the app.
+
+Cheers! 🎉
 
 # Known Issue
 
-TensorFlow doesn't run with older CPU architecture, it requires CPU with AVX and AVX2 instruction set. If you encounter the error `illegal instruction core dump` when running the docker-compose command above, check for your CPU flags with the command and make sure you see `AVX` and `AVX2`. Otherwise, switch to a different VM/desktop with different architecture.
+## TensorFlow Build Issue
 
+*This is a known issue on RaspberryPi 4 arm64-v7 and incorrect Promox setup*
+
+TensorFlow doesn't run with older CPU architecture, it requires a CPU with AVX and AVX2 instruction set. If you encounter the error `illegal instruction core dump` when running the docker-compose command above, check for your CPU flags with the command and make sure you see `AVX` and `AVX2`:
+ 
 ```bash
 more /proc/cpuinfo | grep flags
-```
-
-If you are running virtualization in Promox, the VM doesn't have the flag enable.
-
+``` 
+  
+If you are running virtualization in Promox, the VM doesn't have the flag enabled.
+  
 You need to change the CPU type from `kvm64` to `host` under VMs hardware tab.
-
+  
 `Hardware > Processors > Edit > Advanced > Type (dropdown menu) > host`
+ 
+Otherwise you can:
+- edit `docker-compose.yml` file and comment the whole `immich_microservices` service **which will disable machine learning features like object detection and image classification**
+- switch to a different VM/desktop with different architecture.

@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/modules/home/ui/daily_title_text.dart';
 import 'package:immich_mobile/modules/home/ui/draggable_scrollbar.dart';
@@ -78,14 +79,14 @@ class SearchResultPage extends HookConsumerWidget {
       return Chip(
         label: Wrap(
           spacing: 5,
+          runAlignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          alignment: WrapAlignment.center,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 2.0),
-              child: Text(
-                currentSearchTerm.value,
-                style: TextStyle(color: Theme.of(context).primaryColor),
-                maxLines: 1,
-              ),
+            Text(
+              currentSearchTerm.value,
+              style: TextStyle(color: Theme.of(context).primaryColor, fontSize: 13, fontWeight: FontWeight.bold),
+              maxLines: 1,
             ),
             Icon(
               Icons.close_rounded,
@@ -107,7 +108,10 @@ class SearchResultPage extends HookConsumerWidget {
       }
 
       if (searchResultPageState.isLoading) {
-        return const CircularProgressIndicator.adaptive();
+        return Center(
+            child: SpinKitDancingSquare(
+          color: Theme.of(context).primaryColor,
+        ));
       }
 
       if (searchResultPageState.isSuccess) {

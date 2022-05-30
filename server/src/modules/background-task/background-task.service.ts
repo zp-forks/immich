@@ -9,7 +9,7 @@ export class BackgroundTaskService {
   constructor(
     @InjectQueue('background-task')
     private backgroundTaskQueue: Queue,
-  ) {}
+  ) { }
 
   async extractExif(savedAsset: AssetEntity, fileName: string, fileSize: number) {
     await this.backgroundTaskQueue.add(
@@ -36,6 +36,17 @@ export class BackgroundTaskService {
   async tagImage(thumbnailPath: string, asset: AssetEntity) {
     await this.backgroundTaskQueue.add(
       'tag-image',
+      {
+        thumbnailPath,
+        asset,
+      },
+      { jobId: randomUUID() },
+    );
+  }
+
+  async detectObject(thumbnailPath: string, asset: AssetEntity) {
+    await this.backgroundTaskQueue.add(
+      'detect-object',
       {
         thumbnailPath,
         asset,

@@ -3,9 +3,13 @@ const String userInfoBox = "immichBoxUserInfo"; // Box
 const String accessTokenKey = "immichBoxAccessTokenKey"; // Key 1
 const String deviceIdKey = 'immichBoxDeviceIdKey'; // Key 2
 
-// SERVER ENDPOINT
+// Server endpoint
 const String serverEndpointKey = 'immichBoxServerEndpoint';
 
-// KEY
-const String hiveAllAsssetKey = "allAssets";
-const String hiveBackupProgressKey = "backupProgressAssets";
+// Login Info
+const String hiveLoginInfoBox = "immichLoginInfoBox";
+const String savedLoginInfoKey = "immichSavedLoginInfoKey";
+
+// Backup Info
+const String hiveBackupInfoBox = "immichBackupAlbumInfoBox";
+const String backupInfoKey = "immichBackupAlbumInfoKey";

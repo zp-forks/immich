@@ -2,21 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:immich_mobile/modules/home/providers/asset.provider.dart';
+import 'package:immich_mobile/constants/immich_colors.dart';
+import 'package:immich_mobile/modules/backup/models/hive_backup_albums.model.dart';
+import 'package:immich_mobile/modules/login/models/hive_saved_login_info.model.dart';
+import 'package:immich_mobile/shared/providers/asset.provider.dart';
 import 'package:immich_mobile/routing/router.dart';
 import 'package:immich_mobile/routing/tab_navigation_observer.dart';
 import 'package:immich_mobile/shared/providers/app_state.provider.dart';
-import 'package:immich_mobile/shared/providers/backup.provider.dart';
+import 'package:immich_mobile/modules/backup/providers/backup.provider.dart';
 import 'package:immich_mobile/shared/providers/server_info.provider.dart';
 import 'package:immich_mobile/shared/providers/websocket.provider.dart';
+import 'package:immich_mobile/shared/views/immich_loading_overlay.dart';
 import 'constants/hive_box.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   await Hive.initFlutter();
+
+  Hive.registerAdapter(HiveSavedLoginInfoAdapter());
+  Hive.registerAdapter(HiveBackupAlbumsAdapter());
+
   await Hive.openBox(userInfoBox);
-  // Hive.registerAdapter(ImmichBackUpAssetAdapter());
-  // Hive.deleteBoxFromDisk(hiveImmichBox);
+  await Hive.openBox<HiveSavedLoginInfo>(hiveLoginInfoBox);
+  await Hive.openBox<HiveBackupAlbums>(hiveBackupInfoBox);
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -69,7 +76,7 @@ class _ImmichAppState extends ConsumerState<ImmichApp> with WidgetsBindingObserv
   }
 
   Future<void> initApp() async {
-    WidgetsBinding.instance?.addObserver(this);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
@@ -80,7 +87,7 @@ class _ImmichAppState extends ConsumerState<ImmichApp> with WidgetsBindingObserv
 
   @override
   void dispose() {
-    WidgetsBinding.instance?.removeObserver(this);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -88,26 +95,34 @@ class _ImmichAppState extends ConsumerState<ImmichApp> with WidgetsBindingObserv
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Immich',
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.light,
-        primarySwatch: Colors.indigo,
-        textTheme: GoogleFonts.workSansTextTheme(
-          Theme.of(context).textTheme.apply(fontSizeFactor: 1.0),
-        ),
-        scaffoldBackgroundColor: const Color(0xFFf6f8fe),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.indigo,
-          elevation: 1,
-          centerTitle: true,
-          systemOverlayStyle: SystemUiOverlayStyle.dark,
-        ),
+      home: Stack(
+        children: [
+          MaterialApp.router(
+            title: 'Immich',
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(
+              useMaterial3: true,
+              brightness: Brightness.light,
+              primarySwatch: Colors.indigo,
+              fontFamily: 'WorkSans',
+              snackBarTheme: const SnackBarThemeData(contentTextStyle: TextStyle(fontFamily: 'WorkSans')),
+              scaffoldBackgroundColor: immichBackgroundColor,
+              appBarTheme: const AppBarTheme(
+                backgroundColor: immichBackgroundColor,
+                foregroundColor: Colors.indigo,
+                elevation: 1,
+                centerTitle: true,
+                systemOverlayStyle: SystemUiOverlayStyle.dark,
+              ),
+            ),
+            routeInformationParser: _immichRouter.defaultRouteParser(),
+            routerDelegate: _immichRouter.delegate(navigatorObservers: () => [TabNavigationObserver(ref: ref)]),
+          ),
+          const ImmichLoadingOverlay(),
+        ],
       ),
-      routeInformationParser: _immichRouter.defaultRouteParser(),
-      routerDelegate: _immichRouter.delegate(navigatorObservers: () => [TabNavigationObserver(ref: ref)]),
     );
   }
 }

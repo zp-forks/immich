@@ -1,13 +1,10 @@
 import { BadRequestException, Injectable, Logger, StreamableFile } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThan, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { AuthUserDto } from '../../decorators/auth-user.decorator';
 import { CreateAssetDto } from './dto/create-asset.dto';
-import { UpdateAssetDto } from './dto/update-asset.dto';
 import { AssetEntity, AssetType } from './entities/asset.entity';
-import _, { result } from 'lodash';
-import { GetAllAssetQueryDto } from './dto/get-all-asset-query.dto';
-import { GetAllAssetReponseDto } from './dto/get-all-asset-response.dto';
+import _ from 'lodash';
 import { createReadStream, stat } from 'fs';
 import { ServeFileDto } from './dto/serve-file.dto';
 import { Response as Res } from 'express';
@@ -22,7 +19,7 @@ export class AssetService {
   constructor(
     @InjectRepository(AssetEntity)
     private assetRepository: Repository<AssetEntity>,
-  ) {}
+  ) { }
 
   public async updateThumbnailInfo(assetId: string, path: string) {
     return await this.assetRepository.update(assetId, {
@@ -44,9 +41,7 @@ export class AssetService {
     asset.duration = assetInfo.duration;
 
     try {
-      const res = await this.assetRepository.save(asset);
-
-      return res;
+      return await this.assetRepository.save(asset);
     } catch (e) {
       Logger.error(`Error Create New Asset ${e}`, 'createUserAsset');
     }
@@ -68,58 +63,20 @@ export class AssetService {
 
   public async getAllAssetsNoPagination(authUser: AuthUserDto) {
     try {
-      const assets = await this.assetRepository
+      return await this.assetRepository
         .createQueryBuilder('a')
         .where('a."userId" = :userId', { userId: authUser.id })
         .orderBy('a."createdAt"::date', 'DESC')
         .getMany();
-
-      return assets;
     } catch (e) {
       Logger.error(e, 'getAllAssets');
     }
   }
 
-  public async getAllAssets(authUser: AuthUserDto, query: GetAllAssetQueryDto): Promise<GetAllAssetReponseDto> {
-    try {
-      const assets = await this.assetRepository
-        .createQueryBuilder('a')
-        .where('a."userId" = :userId', { userId: authUser.id })
-        .andWhere('a."createdAt" < :lastQueryCreatedAt', {
-          lastQueryCreatedAt: query.nextPageKey || new Date().toISOString(),
-        })
-        .orderBy('a."createdAt"::date', 'DESC')
-        .take(5000)
-        .getMany();
-
-      if (assets.length > 0) {
-        const data = _.groupBy(assets, (a) => new Date(a.createdAt).toISOString().slice(0, 10));
-        const formattedData = [];
-        Object.keys(data).forEach((v) => formattedData.push({ date: v, assets: data[v] }));
-
-        const response = new GetAllAssetReponseDto();
-        response.count = assets.length;
-        response.data = formattedData;
-        response.nextPageKey = assets[assets.length - 1].createdAt;
-
-        return response;
-      } else {
-        const response = new GetAllAssetReponseDto();
-        response.count = 0;
-        response.data = [];
-        response.nextPageKey = 'null';
-
-        return response;
-      }
-    } catch (e) {
-      Logger.error(e, 'getAllAssets');
-    }
-  }
-
-  public async findOne(authUser: AuthUserDto, deviceId: string, assetId: string): Promise<AssetEntity> {
+  public async findOne(deviceId: string, assetId: string): Promise<AssetEntity> {
     const rows = await this.assetRepository.query(
-      'SELECT * FROM assets a WHERE a."deviceAssetId" = $1 AND a."userId" = $2 AND a."deviceId" = $3',
-      [assetId, authUser.id, deviceId],
+      'SELECT * FROM assets a WHERE a."deviceAssetId" = $1 AND a."deviceId" = $2',
+      [assetId, deviceId],
     );
 
     if (rows.lengh == 0) {
@@ -129,51 +86,91 @@ export class AssetService {
     return rows[0] as AssetEntity;
   }
 
-  public async getNewAssets(authUser: AuthUserDto, latestDate: string) {
-    return await this.assetRepository.find({
-      where: {
-        userId: authUser.id,
-        createdAt: MoreThan(latestDate),
-      },
-      order: {
-        createdAt: 'ASC', // ASC order to add existed asset the latest group first before creating a new date group.
-      },
-    });
-  }
-
   public async getAssetById(authUser: AuthUserDto, assetId: string) {
     return await this.assetRepository.findOne({
       where: {
-        userId: authUser.id,
         id: assetId,
       },
       relations: ['exifInfo'],
     });
   }
 
+  public async downloadFile(query: ServeFileDto, res: Res) {
+    let file = null;
+    const asset = await this.findOne(query.did, query.aid);
+
+    if (query.isThumb === 'false' || !query.isThumb) {
+      file = createReadStream(asset.originalPath);
+    } else {
+      file = createReadStream(asset.resizePath);
+    }
+
+    return new StreamableFile(file);
+  }
+
+  public async getAssetThumbnail(assetId: string) {
+    const asset = await this.assetRepository.findOne({ id: assetId });
+
+    if (asset.webpPath != '') {
+      return new StreamableFile(createReadStream(asset.webpPath));
+    } else {
+      return new StreamableFile(createReadStream(asset.resizePath));
+    }
+  }
+
   public async serveFile(authUser: AuthUserDto, query: ServeFileDto, res: Res, headers: any) {
     let file = null;
-    const asset = await this.findOne(authUser, query.did, query.aid);
+    const asset = await this.findOne(query.did, query.aid);
+
+    if (!asset) {
+      throw new BadRequestException('Asset does not exist');
+    }
+
 
     // Handle Sending Images
     if (asset.type == AssetType.IMAGE || query.isThumb == 'true') {
-      res.set({
-        'Content-Type': asset.mimeType,
-      });
+      /**
+       * Serve file viewer on the web
+       */
+      if (query.isWeb) {
+        res.set({
+          'Content-Type': 'image/jpeg',
+        });
+        return new StreamableFile(createReadStream(asset.resizePath));
+      }
 
+
+      /**
+       * Serve thumbnail image for both web and mobile app
+       */
       if (query.isThumb === 'false' || !query.isThumb) {
+        res.set({
+          'Content-Type': asset.mimeType,
+        });
         file = createReadStream(asset.originalPath);
       } else {
-        file = createReadStream(asset.resizePath);
+        if (asset.webpPath != '') {
+          res.set({
+            'Content-Type': 'image/webp',
+          });
+          file = createReadStream(asset.webpPath);
+        } else {
+          res.set({
+            'Content-Type': 'image/jpeg',
+          });
+          file = createReadStream(asset.resizePath);
+        }
       }
 
       file.on('error', (error) => {
         Logger.log(`Cannot create read stream ${error}`);
         return new BadRequestException('Cannot Create Read Stream');
       });
+
       return new StreamableFile(file);
+
     } else if (asset.type == AssetType.VIDEO) {
-      // Handle Handling Video
+      // Handle Video
       const { size } = await fileInfo(asset.originalPath);
       const range = headers.range;
 
@@ -215,6 +212,8 @@ export class AssetService {
         const videoStream = createReadStream(asset.originalPath, { start: start, end: end });
 
         return new StreamableFile(videoStream);
+
+
       } else {
         res.set({
           'Content-Type': asset.mimeType,
@@ -226,10 +225,10 @@ export class AssetService {
   }
 
   public async deleteAssetById(authUser: AuthUserDto, assetIds: DeleteAssetDto) {
-    let result = [];
+    const result = [];
 
     const target = assetIds.ids;
-    for (let assetId of target) {
+    for (const assetId of target) {
       const res = await this.assetRepository.delete({
         id: assetId,
         userId: authUser.id,
@@ -251,11 +250,11 @@ export class AssetService {
     return result;
   }
 
-  async getAssetSearchTerm(authUser: AuthUserDto): Promise<String[]> {
-    const possibleSearchTerm = new Set<String>();
+  async getAssetSearchTerm(authUser: AuthUserDto): Promise<string[]> {
+    const possibleSearchTerm = new Set<string>();
     const rows = await this.assetRepository.query(
       `
-      select distinct si.tags, e.orientation, e."lensModel", e.make, e.model , a.type, e.city, e.state, e.country
+      select distinct si.tags, si.objects, e.orientation, e."lensModel", e.make, e.model , a.type, e.city, e.state, e.country
       from assets a
       left join exif e on a.id = e."assetId"
       left join smart_info si on a.id = si."assetId"
@@ -267,6 +266,9 @@ export class AssetService {
     rows.forEach((row) => {
       // tags
       row['tags']?.map((tag) => possibleSearchTerm.add(tag?.toLowerCase()));
+
+      // objects
+      row['objects']?.map((object) => possibleSearchTerm.add(object?.toLowerCase()));
 
       // asset's tyoe
       possibleSearchTerm.add(row['type']?.toLowerCase());
@@ -300,18 +302,17 @@ export class AssetService {
     WHERE a."userId" = $1
        AND 
        (
-         TO_TSVECTOR('english', ARRAY_TO_STRING(si.tags, ',')) @@ PLAINTO_TSQUERY('english', $2) OR 
+         TO_TSVECTOR('english', ARRAY_TO_STRING(si.tags, ',')) @@ PLAINTO_TSQUERY('english', $2) OR
+         TO_TSVECTOR('english', ARRAY_TO_STRING(si.objects, ',')) @@ PLAINTO_TSQUERY('english', $2) OR
          e.exif_text_searchable_column @@ PLAINTO_TSQUERY('english', $2)
         );
     `;
 
-    const rows = await this.assetRepository.query(query, [authUser.id, searchAssetDto.searchTerm]);
-
-    return rows;
+    return await this.assetRepository.query(query, [authUser.id, searchAssetDto.searchTerm]);
   }
 
   async getCuratedLocation(authUser: AuthUserDto) {
-    const rows = await this.assetRepository.query(
+    return await this.assetRepository.query(
       `
         select distinct on (e.city) a.id, e.city, a."resizePath", a."deviceAssetId", a."deviceId"
         from assets a
@@ -322,7 +323,18 @@ export class AssetService {
       `,
       [authUser.id],
     );
+  }
 
-    return rows;
+  async getCuratedObject(authUser: AuthUserDto) {
+    return await this.assetRepository.query(
+      `
+        select distinct on (unnest(si.objects)) a.id, unnest(si.objects) as "object", a."resizePath", a."deviceAssetId", a."deviceId"
+        from assets a
+        left join smart_info si on a.id = si."assetId"
+        where a."userId" = $1 
+        and si.objects is not null
+      `,
+      [authUser.id],
+    );
   }
 }

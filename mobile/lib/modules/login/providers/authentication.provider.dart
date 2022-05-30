@@ -4,8 +4,9 @@ import 'package:hive/hive.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/constants/hive_box.dart';
 import 'package:immich_mobile/modules/login/models/authentication_state.model.dart';
+import 'package:immich_mobile/modules/login/models/hive_saved_login_info.model.dart';
 import 'package:immich_mobile/modules/login/models/login_response.model.dart';
-import 'package:immich_mobile/shared/services/backup.service.dart';
+import 'package:immich_mobile/modules/backup/services/backup.service.dart';
 import 'package:immich_mobile/shared/services/device_info.service.dart';
 import 'package:immich_mobile/shared/services/network.service.dart';
 import 'package:immich_mobile/shared/models/device_info.model.dart';
@@ -16,9 +17,14 @@ class AuthenticationNotifier extends StateNotifier<AuthenticationState> {
           AuthenticationState(
             deviceId: "",
             deviceType: "",
-            isAuthenticated: false,
             userId: "",
             userEmail: "",
+            firstName: '',
+            lastName: '',
+            profileImagePath: '',
+            isAdmin: false,
+            isFirstLogin: false,
+            isAuthenticated: false,
             deviceInfo: DeviceInfoRemote(
               id: 0,
               userId: "",
@@ -36,7 +42,7 @@ class AuthenticationNotifier extends StateNotifier<AuthenticationState> {
   final BackupService _backupService = BackupService();
   final NetworkService _networkService = NetworkService();
 
-  Future<bool> login(String email, String password, String serverEndpoint) async {
+  Future<bool> login(String email, String password, String serverEndpoint, bool isSavedLoginInfo) async {
     // Store server endpoint to Hive and test endpoint
     if (serverEndpoint[serverEndpoint.length - 1] == "/") {
       var validUrl = serverEndpoint.substring(0, serverEndpoint.length - 1);
@@ -75,7 +81,26 @@ class AuthenticationNotifier extends StateNotifier<AuthenticationState> {
         isAuthenticated: true,
         userId: payload.userId,
         userEmail: payload.userEmail,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        profileImagePath: payload.profileImagePath,
+        isAdmin: payload.isAdmin,
+        isFirstLoggedIn: payload.isFirstLogin,
       );
+
+      if (isSavedLoginInfo) {
+        // Save login info to local storage
+        Hive.box<HiveSavedLoginInfo>(hiveLoginInfoBox).put(
+          savedLoginInfoKey,
+          HiveSavedLoginInfo(
+              email: email,
+              password: password,
+              isSaveLogin: true,
+              serverUrl: Hive.box(userInfoBox).get(serverEndpointKey)),
+        );
+      } else {
+        Hive.box<HiveSavedLoginInfo>(hiveLoginInfoBox).delete(savedLoginInfoKey);
+      }
     } catch (e) {
       return false;
     }
@@ -99,9 +124,14 @@ class AuthenticationNotifier extends StateNotifier<AuthenticationState> {
     state = AuthenticationState(
       deviceId: "",
       deviceType: "",
-      isAuthenticated: false,
       userId: "",
       userEmail: "",
+      firstName: '',
+      lastName: '',
+      profileImagePath: '',
+      isFirstLogin: false,
+      isAuthenticated: false,
+      isAdmin: false,
       deviceInfo: DeviceInfoRemote(
         id: 0,
         userId: "",
@@ -123,6 +153,10 @@ class AuthenticationNotifier extends StateNotifier<AuthenticationState> {
 
     DeviceInfoRemote deviceInfoRemote = await _backupService.setAutoBackup(backupState, deviceId, deviceType);
     state = state.copyWith(deviceInfo: deviceInfoRemote);
+  }
+
+  updateUserProfileImagePath(String path) {
+    state = state.copyWith(profileImagePath: path);
   }
 }
 

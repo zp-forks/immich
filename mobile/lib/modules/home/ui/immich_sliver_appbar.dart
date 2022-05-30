@@ -1,14 +1,13 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:badges/badges.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/modules/login/providers/authentication.provider.dart';
 
 import 'package:immich_mobile/routing/router.dart';
-import 'package:immich_mobile/shared/models/backup_state.model.dart';
+import 'package:immich_mobile/modules/backup/models/backup_state.model.dart';
 import 'package:immich_mobile/shared/models/server_info_state.model.dart';
-import 'package:immich_mobile/shared/providers/backup.provider.dart';
+import 'package:immich_mobile/modules/backup/providers/backup.provider.dart';
 import 'package:immich_mobile/shared/providers/server_info.provider.dart';
 
 class ImmichSliverAppBar extends ConsumerWidget {
@@ -30,7 +29,6 @@ class ImmichSliverAppBar extends ConsumerWidget {
       floating: true,
       pinned: false,
       snap: false,
-      backgroundColor: Colors.grey[200],
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(5))),
       leading: Builder(
         builder: (BuildContext context) {
@@ -41,7 +39,7 @@ class ImmichSliverAppBar extends ConsumerWidget {
                 child: IconButton(
                   splashRadius: 25,
                   icon: const Icon(
-                    Icons.account_circle_rounded,
+                    Icons.face_outlined,
                     size: 30,
                   ),
                   onPressed: () {
@@ -79,12 +77,11 @@ class ImmichSliverAppBar extends ConsumerWidget {
       ),
       title: Text(
         'IMMICH',
-        style: GoogleFonts.snowburstOne(
-          textStyle: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
-            color: Theme.of(context).primaryColor,
-          ),
+        style: TextStyle(
+          fontFamily: 'SnowburstOne',
+          fontWeight: FontWeight.bold,
+          fontSize: 22,
+          color: Theme.of(context).primaryColor,
         ),
       ),
       actions: [
@@ -112,7 +109,7 @@ class ImmichSliverAppBar extends ConsumerWidget {
                   ? const Icon(Icons.backup_rounded)
                   : Badge(
                       padding: const EdgeInsets.all(4),
-                      elevation: 1,
+                      elevation: 2,
                       position: BadgePosition.bottomEnd(bottom: -4, end: -4),
                       badgeColor: Colors.white,
                       badgeContent: const Icon(
@@ -120,16 +117,20 @@ class ImmichSliverAppBar extends ConsumerWidget {
                         size: 8,
                       ),
                       child: const Icon(Icons.backup_rounded)),
-              tooltip: 'Backup Controller',
-              onPressed: () {
-                AutoRouter.of(context).push(const BackupControllerRoute());
+              onPressed: () async {
+                var onPop = await AutoRouter.of(context).push(const BackupControllerRoute());
+
+                if (onPop != null && onPop == true) {
+                  onPopBack!();
+                }
               },
             ),
             _backupState.backupProgress == BackUpProgressEnum.inProgress
                 ? Positioned(
                     bottom: 5,
                     child: Text(
-                      _backupState.backingUpAssetCount.toString(),
+                      (_backupState.allUniqueAssets.length - _backupState.selectedAlbumsBackupAssetsIds.length)
+                          .toString(),
                       style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
                     ),
                   )

@@ -10,10 +10,9 @@ import 'package:immich_mobile/modules/home/ui/image_grid.dart';
 import 'package:immich_mobile/modules/home/ui/immich_sliver_appbar.dart';
 import 'package:immich_mobile/modules/home/ui/monthly_title_text.dart';
 import 'package:immich_mobile/modules/home/ui/profile_drawer.dart';
-import 'package:immich_mobile/modules/home/providers/asset.provider.dart';
+import 'package:immich_mobile/shared/providers/asset.provider.dart';
 import 'package:immich_mobile/shared/providers/server_info.provider.dart';
 import 'package:immich_mobile/shared/providers/websocket.provider.dart';
-import 'package:sliver_tools/sliver_tools.dart';
 
 class HomePage extends HookConsumerWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -32,6 +31,23 @@ class HomePage extends HookConsumerWidget {
       ref.watch(serverInfoProvider.notifier).getServerVersion();
       return null;
     }, []);
+
+    void reloadAllAsset() {
+      ref.read(assetProvider.notifier).getAllAsset();
+    }
+
+    _buildSelectedItemCountIndicator() {
+      return isMultiSelectEnable
+          ? DisableMultiSelectButton(
+              onPressed: ref.watch(homePageStateProvider.notifier).disableMultiSelect,
+              selectedItemCount: homePageState.selectedItems.length,
+            )
+          : Container();
+    }
+
+    _buildBottomAppBar() {
+      return isMultiSelectEnable ? const ControlBottomAppBar() : Container();
+    }
 
     Widget _buildBody() {
       if (assetGroupByDateTime.isNotEmpty) {
@@ -66,47 +82,51 @@ class HomePage extends HookConsumerWidget {
         });
       }
 
+      _buildSliverAppBar() {
+        return isMultiSelectEnable
+            ? const SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 70,
+                  child: null,
+                ),
+              )
+            : ImmichSliverAppBar(
+                onPopBack: reloadAllAsset,
+              );
+      }
+
       return SafeArea(
         bottom: !isMultiSelectEnable,
         top: !isMultiSelectEnable,
         child: Stack(
           children: [
-            DraggableScrollbar.semicircle(
-              backgroundColor: Theme.of(context).primaryColor,
-              controller: _scrollController,
-              heightScrollThumb: 48.0,
-              child: CustomScrollView(
+            CustomScrollView(
+              slivers: [
+                _buildSliverAppBar(),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 50.0),
+              child: DraggableScrollbar.semicircle(
+                backgroundColor: Theme.of(context).primaryColor,
                 controller: _scrollController,
-                slivers: [
-                  SliverAnimatedSwitcher(
-                    child: isMultiSelectEnable
-                        ? const SliverToBoxAdapter(
-                            child: SizedBox(
-                              height: 70,
-                              child: null,
-                            ),
-                          )
-                        : const ImmichSliverAppBar(),
-                    duration: const Duration(milliseconds: 350),
-                  ),
-                  ..._imageGridGroup
-                ],
+                heightScrollThumb: 48.0,
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  slivers: [
+                    ..._imageGridGroup,
+                  ],
+                ),
               ),
             ),
-            isMultiSelectEnable
-                ? DisableMultiSelectButton(
-                    onPressed: ref.watch(homePageStateProvider.notifier).disableMultiSelect,
-                    selectedItemCount: homePageState.selectedItems.length,
-                  )
-                : Container(),
-            isMultiSelectEnable ? const ControlBottomAppBar() : Container(),
+            _buildSelectedItemCountIndicator(),
+            _buildBottomAppBar(),
           ],
         ),
       );
     }
 
     return Scaffold(
-      // key: _scaffoldKey,
       drawer: const ProfileDrawer(),
       body: _buildBody(),
     );

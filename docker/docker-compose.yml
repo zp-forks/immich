@@ -1,38 +1,63 @@
 version: "3.8"
 
 services:
-  immich_server:
-    image: immich-server-dev:1.3.2
-    build:
-      context: ../server
-      target: development
-      dockerfile: ../server/Dockerfile
+  immich-server:
+    image: altran1502/immich-server:latest
     entrypoint: ["/bin/sh", "./entrypoint.sh"]
-    restart: always
     expose:
       - "3000"
     volumes:
-      - ../server:/usr/src/app
       - ${UPLOAD_LOCATION}:/usr/src/app/upload
-      - /usr/src/app/node_modules
     env_file:
       - .env
+    environment:
+      - NODE_ENV=production
     depends_on:
       - redis
       - database
     networks:
-      - immich_network
+      - immich-network
+    restart: always
+
+  immich-microservices:
+    image: altran1502/immich-microservices:latest
+    entrypoint: ["/bin/sh", "./entrypoint.sh"]
+    expose:
+      - "3001"
+    volumes:
+      - ${UPLOAD_LOCATION}:/usr/src/app/upload
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - database
+    networks:
+      - immich-network
+    restart: always
+
+  immich-web:
+    image: altran1502/immich-web:latest
+    entrypoint: ["/bin/sh", "./entrypoint.sh"]
+    env_file:
+      - .env
+    ports:
+      - 2285:3000
+    networks:
+      - immich-network
+    restart: always
+
 
   redis:
     container_name: immich_redis
-    restart: always
     image: redis:6.2
     networks:
-      - immich_network
+      - immich-network
+    restart: always
+    
 
   database:
     container_name: immich_postgres
-    restart: always
     image: postgres:14
     env_file:
       - .env
@@ -46,8 +71,9 @@ services:
     ports:
       - 5432:5432
     networks:
-      - immich_network
-
+      - immich-network
+    restart: always
+    
   nginx:
     container_name: proxy_nginx
     image: nginx:latest
@@ -59,34 +85,12 @@ services:
     logging:
       driver: none
     networks:
-      - immich_network
+      - immich-network
     depends_on:
-      - immich_server
-
-  immich_tf_fastapi:
-    container_name: immich_tf_fastapi
-    image: tensor_flow_fastapi:1.0.0
-    env_file:
-      - .env
+      - immich-server
     restart: always
-    command: uvicorn app.main:app --proxy-headers --host 0.0.0.0 --port 8000 --reload
-    build:
-      context: ../machine_learning
-      target: cpu
-      dockerfile: ../machine_learning/Dockerfile
-    volumes:
-      - ../machine_learning/app:/code/app
-      - ${UPLOAD_LOCATION}:/code/app/upload
-    ports:
-      - 2285:8000
-    expose:
-      - "8000"
-    depends_on:
-      - database
-    networks:
-      - immich_network
 
 networks:
-  immich_network:
+  immich-network:
 volumes:
   pgdata:
