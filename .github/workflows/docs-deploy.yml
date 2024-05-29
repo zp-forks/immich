@@ -131,6 +131,8 @@ jobs:
           tofu_version: "1.7.1"
           tg_dir: "./deployment/modules/cloudflare/docs"
           tg_command: "apply"
+      - name: print current directory
+        run: pwd
 
       - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@v1
