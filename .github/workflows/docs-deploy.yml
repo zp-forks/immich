@@ -147,10 +147,14 @@ jobs:
           tg_dir: "deployment/modules/cloudflare/docs"
           tg_command: "output -json"
 
-      - run: echo "${{ steps.docs-output.outputs.tg_action_output }}"
-      - run: echo "${{fromJson(steps.docs-output.outputs.tg_action_output)}}"
-      - run: echo "${{fromJson(steps.docs-output.outputs.tg_action_output).immich_app_branch_subdomain}}"
-      - run: echo "${{fromJson(steps.docs-output.outputs.tg_action_output).immich_app_branch_subdomain.value}}"
+      - name: Process Terraform Output
+        id: docs-output-processed
+        run: |
+          OUTPUT=$(echo "${{ steps.docs-output.outputs.tg_action_output }}" | jq -c)
+          echo "output=$OUTPUT" >> $GITHUB_OUTPUT
+      - run: echo "${{fromJson(steps.docs-output-processed.outputs.output)}}"
+      - run: echo "${{fromJson(steps.docs-output-processed.outputs.output).immich_app_branch_subdomain}}"
+      - run: echo "${{fromJson(steps.docs-output-processed.outputs.output).immich_app_branch_subdomain.value}}"
 
       - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@v1
