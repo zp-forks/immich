@@ -137,7 +137,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           TF_STATE_POSTGRES_CONN_STR: ${{ secrets.TF_STATE_POSTGRES_CONN_STR }}
-        uses: gruntwork-io/terragrunt-action@v2
         working-directory: ./deployment/modules/cloudflare/docs
         run: terragrunt apply -auto-approve
 
