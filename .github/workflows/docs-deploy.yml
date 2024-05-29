@@ -147,12 +147,10 @@ jobs:
           tg_dir: "deployment/modules/cloudflare/docs"
           tg_command: "output -json"
 
-      - name: Test Output
-        run: |
-          echo "${{ steps.docs-output.outputs.tg_action_output }}"
-          echo "${{fromJson(steps.docs-output.outputs.tg_action_output)}}"
-          echo "${{fromJson(steps.docs-output.outputs.tg_action_output).immich_app_branch_subdomain}}"
-          echo "${{fromJson(steps.docs-output.outputs.tg_action_output).immich_app_branch_subdomain.value}}"
+      - run: echo "${{ steps.docs-output.outputs.tg_action_output }}"
+      - run: echo "${{fromJson(steps.docs-output.outputs.tg_action_output)}}"
+      - run: echo "${{fromJson(steps.docs-output.outputs.tg_action_output).immich_app_branch_subdomain}}"
+      - run: echo "${{fromJson(steps.docs-output.outputs.tg_action_output).immich_app_branch_subdomain.value}}"
 
       - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@v1
