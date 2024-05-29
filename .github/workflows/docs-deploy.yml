@@ -115,6 +115,8 @@ jobs:
           tofu_version: "1.7.1"
           tg_dir: "./deployment/modules/cloudflare/docs"
           tg_command: "apply"
+      - name: print current directory
+        run: pwd
 
       - name: Deploy Docs Release Domain
         if: ${{ steps.parameters.outputs.event == 'release' }}
