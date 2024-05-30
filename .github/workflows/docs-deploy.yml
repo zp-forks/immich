@@ -158,7 +158,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES_UPLOAD }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: "immich-app"
+          projectName: ${{ fromJson(steps.clean.outputs.output).pages_project_name.value }}
           workingDirectory: "docs"
           directory: "build"
           branch: ${{ steps.parameters.outputs.name }}
