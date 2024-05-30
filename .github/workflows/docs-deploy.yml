@@ -152,16 +152,6 @@ jobs:
         run: |
           TG_OUT=$(echo '${{ steps.docs-output.outputs.tg_action_output }}' | sed 's|%0A|\n|g ; s|%3C|<|g' | jq -c .)
           echo "output=$TG_OUT" >> $GITHUB_OUTPUT
-          echo "$GITHUB_OUTPUT"
-
-      - name: Process Terraform Output
-        id: docs-output-processed
-        run: |
-          OUTPUT=$(echo "${{ steps.clean.outputs.output }}")
-          echo "output=$OUTPUT" >> $GITHUB_OUTPUT
-      - run: echo "${{fromJson(steps.clean.outputs.output)}}"
-      - run: echo "${{fromJson(steps.clean.outputs.output).immich_app_branch_subdomain}}"
-      - run: echo "${{fromJson(steps.clean.outputs.output).immich_app_branch_subdomain.value}}"
 
       - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@v1
@@ -194,6 +184,6 @@ jobs:
         with:
           number: ${{ fromJson(needs.checks.outputs.parameters).pr_number }}
           body: |
-            📖 Documentation deployed to [${{ steps.parameters.outputs.name }}.preview.immich.app](https://${{ steps.parameters.outputs.name }}.preview.immich.app)
+            📖 Documentation deployed to [${{ fromJson(steps.clean.outputs.output).immich_app_branch_subdomain.value }}](https://${{ fromJson(steps.clean.outputs.output).immich_app_branch_subdomain.value }})
           emojis: 'rocket'
           body-include: '<!-- Docs PR URL -->'
