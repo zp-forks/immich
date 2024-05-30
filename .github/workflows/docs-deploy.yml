@@ -151,7 +151,8 @@ jobs:
         id: clean
         run: |
           TG_OUT=$(echo '${{ steps.docs-output.outputs.tg_action_output }}' | sed 's|%0A|\n|g ; s|%3C|<|g')
-          echo "output=$TG_OUT" >> $GITHUB_OUTPUT
+          echo "output='$TG_OUT'" >> $GITHUB_OUTPUT
+          echo "$GITHUB_OUTPUT"
 
       - name: Process Terraform Output
         id: docs-output-processed
