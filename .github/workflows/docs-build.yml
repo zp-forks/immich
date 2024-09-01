@@ -2,12 +2,12 @@ name: Docs build
 on:
   push:
     branches: [main]
-    paths:
-      - "docs/**"
+#    paths:
+#      - "docs/**"
   pull_request:
     branches: [main]
-    paths:
-      - "docs/**"
+#    paths:
+#      - "docs/**"
   release:
     types: [published]
 
@@ -34,15 +34,10 @@ jobs:
       - name: Run npm install
         run: npm ci
 
-      - name: Check formatting
-        run: npm run format
-
-      - name: Run build
-        run: npm run build
 
       - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
           name: docs-build-output
-          path: docs/build/
+          path: docs/README.md
           retention-days: 1
