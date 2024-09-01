@@ -3,29 +3,40 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { json } from 'body-parser';
 import cookieParser from 'cookie-parser';
 import { existsSync } from 'node:fs';
-import { isMainThread } from 'node:worker_threads';
 import sirv from 'sirv';
 import { ApiModule } from 'src/app.module';
-import { envName, excludePaths, isDev, serverVersion, WEB_ROOT } from 'src/constants';
+import { envName, excludePaths, isDev, resourcePaths, serverVersion } from 'src/constants';
 import { ILoggerRepository } from 'src/interfaces/logger.interface';
 import { WebSocketAdapter } from 'src/middleware/websocket.adapter';
 import { ApiService } from 'src/services/api.service';
-import { otelSDK } from 'src/utils/instrumentation';
+import { otelStart } from 'src/utils/instrumentation';
 import { useSwagger } from 'src/utils/misc';
 
 const host = process.env.HOST;
 
+function parseTrustedProxy(input?: string) {
+  if (!input) {
+    return [];
+  }
+  // Split on ',' char to allow multiple IPs
+  return input.split(',');
+}
+
 async function bootstrap() {
-  otelSDK.start();
+  process.title = 'immich-api';
+  const otelPort = Number.parseInt(process.env.IMMICH_API_METRICS_PORT ?? '8081');
+  const trustedProxies = parseTrustedProxy(process.env.IMMICH_TRUSTED_PROXIES ?? '');
+
+  otelStart(otelPort);
 
   const port = Number(process.env.IMMICH_PORT) || 3001;
   const app = await NestFactory.create<NestExpressApplication>(ApiModule, { bufferLogs: true });
-  const logger = await app.resolve(ILoggerRepository);
+  const logger = await app.resolve<ILoggerRepository>(ILoggerRepository);
 
-  logger.setAppName('ImmichServer');
-  logger.setContext('ImmichServer');
+  logger.setAppName('Api');
+  logger.setContext('Bootstrap');
   app.useLogger(logger);
-  app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+  app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal', ...trustedProxies]);
   app.set('etag', 'strong');
   app.use(cookieParser());
   app.use(json({ limit: '10mb' }));
@@ -36,14 +47,15 @@ async function bootstrap() {
   useSwagger(app);
 
   app.setGlobalPrefix('api', { exclude: excludePaths });
-  if (existsSync(WEB_ROOT)) {
+  if (existsSync(resourcePaths.web.root)) {
     // copied from https://github.com/sveltejs/kit/blob/679b5989fe62e3964b9a73b712d7b41831aa1f07/packages/adapter-node/src/handler.js#L46
     // provides serving of precompressed assets and caching of immutable assets
     app.use(
-      sirv(WEB_ROOT, {
+      sirv(resourcePaths.web.root, {
         etag: true,
         gzip: true,
         brotli: true,
+        extensions: [],
         setHeaders: (res, pathname) => {
           if (pathname.startsWith(`/_app/immutable`) && res.statusCode === 200) {
             res.setHeader('cache-control', 'public,max-age=31536000,immutable');
@@ -60,9 +72,7 @@ async function bootstrap() {
   logger.log(`Immich Server is listening on ${await app.getUrl()} [v${serverVersion}] [${envName}] `);
 }
 
-if (!isMainThread) {
-  bootstrap().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
-}
+bootstrap().catch((error) => {
+  console.error(error);
+  throw error;
+});

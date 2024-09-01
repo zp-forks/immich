@@ -1,11 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { DEFAULT_EXTERNAL_DOMAIN } from 'src/constants';
 import { SystemConfigCore } from 'src/cores/system-config.core';
-import { OnServerEvent } from 'src/decorators';
+import { OnEmit } from 'src/decorators';
+import { SystemConfigSmtpDto } from 'src/dtos/system-config.dto';
 import { AlbumEntity } from 'src/entities/album.entity';
 import { IAlbumRepository } from 'src/interfaces/album.interface';
 import { IAssetRepository } from 'src/interfaces/asset.interface';
-import { ServerAsyncEvent, ServerAsyncEventMap } from 'src/interfaces/event.interface';
+import { ArgOf } from 'src/interfaces/event.interface';
 import {
   IEmailJob,
   IJobRepository,
@@ -19,6 +20,10 @@ import { ILoggerRepository } from 'src/interfaces/logger.interface';
 import { EmailImageAttachment, EmailTemplate, INotificationRepository } from 'src/interfaces/notification.interface';
 import { ISystemMetadataRepository } from 'src/interfaces/system-metadata.interface';
 import { IUserRepository } from 'src/interfaces/user.interface';
+import { getAssetFiles } from 'src/utils/asset.util';
+import { getFilenameExtension } from 'src/utils/file';
+import { isEqualObject } from 'src/utils/object';
+import { getPreferences } from 'src/utils/preferences';
 
 @Injectable()
 export class NotificationService {
@@ -37,15 +42,13 @@ export class NotificationService {
     this.configCore = SystemConfigCore.create(systemMetadataRepository, logger);
   }
 
-  init() {
-    // TODO
-    return Promise.resolve();
-  }
-
-  @OnServerEvent(ServerAsyncEvent.CONFIG_VALIDATE)
-  async onValidateConfig({ newConfig }: ServerAsyncEventMap[ServerAsyncEvent.CONFIG_VALIDATE]) {
+  @OnEmit({ event: 'config.validate', priority: -100 })
+  async onConfigValidate({ oldConfig, newConfig }: ArgOf<'config.validate'>) {
     try {
-      if (newConfig.notifications.smtp.enabled) {
+      if (
+        newConfig.notifications.smtp.enabled &&
+        !isEqualObject(oldConfig.notifications.smtp, newConfig.notifications.smtp)
+      ) {
         await this.notificationRepository.verifySmtp(newConfig.notifications.smtp.transport);
       }
     } catch (error: Error | any) {
@@ -54,14 +57,63 @@ export class NotificationService {
     }
   }
 
+  @OnEmit({ event: 'user.signup' })
+  async onUserSignup({ notify, id, tempPassword }: ArgOf<'user.signup'>) {
+    if (notify) {
+      await this.jobRepository.queue({ name: JobName.NOTIFY_SIGNUP, data: { id, tempPassword } });
+    }
+  }
+
+  @OnEmit({ event: 'album.update' })
+  async onAlbumUpdate({ id, updatedBy }: ArgOf<'album.update'>) {
+    await this.jobRepository.queue({ name: JobName.NOTIFY_ALBUM_UPDATE, data: { id, senderId: updatedBy } });
+  }
+
+  @OnEmit({ event: 'album.invite' })
+  async onAlbumInvite({ id, userId }: ArgOf<'album.invite'>) {
+    await this.jobRepository.queue({ name: JobName.NOTIFY_ALBUM_INVITE, data: { id, recipientId: userId } });
+  }
+
+  async sendTestEmail(id: string, dto: SystemConfigSmtpDto) {
+    const user = await this.userRepository.get(id, { withDeleted: false });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    try {
+      await this.notificationRepository.verifySmtp(dto.transport);
+    } catch (error) {
+      throw new HttpException('Failed to verify SMTP configuration', HttpStatus.BAD_REQUEST, { cause: error });
+    }
+
+    const { server } = await this.configCore.getConfig({ withCache: false });
+    const { html, text } = await this.notificationRepository.renderEmail({
+      template: EmailTemplate.TEST_EMAIL,
+      data: {
+        baseUrl: server.externalDomain || DEFAULT_EXTERNAL_DOMAIN,
+        displayName: user.name,
+      },
+    });
+
+    await this.notificationRepository.sendEmail({
+      to: user.email,
+      subject: 'Test email from Immich',
+      html,
+      text,
+      from: dto.from,
+      replyTo: dto.replyTo || dto.from,
+      smtp: dto.transport,
+    });
+  }
+
   async handleUserSignup({ id, tempPassword }: INotifySignupJob) {
     const user = await this.userRepository.get(id, { withDeleted: false });
     if (!user) {
       return JobStatus.SKIPPED;
     }
 
-    const { server } = await this.configCore.getConfig();
-    const { html, text } = this.notificationRepository.renderEmail({
+    const { server } = await this.configCore.getConfig({ withCache: true });
+    const { html, text } = await this.notificationRepository.renderEmail({
       template: EmailTemplate.WELCOME,
       data: {
         baseUrl: server.externalDomain || DEFAULT_EXTERNAL_DOMAIN,
@@ -95,10 +147,16 @@ export class NotificationService {
       return JobStatus.SKIPPED;
     }
 
+    const { emailNotifications } = getPreferences(recipient);
+
+    if (!emailNotifications.enabled || !emailNotifications.albumInvite) {
+      return JobStatus.SKIPPED;
+    }
+
     const attachment = await this.getAlbumThumbnailAttachment(album);
 
-    const { server } = await this.configCore.getConfig();
-    const { html, text } = this.notificationRepository.renderEmail({
+    const { server } = await this.configCore.getConfig({ withCache: false });
+    const { html, text } = await this.notificationRepository.renderEmail({
       template: EmailTemplate.ALBUM_INVITE,
       data: {
         baseUrl: server.externalDomain || DEFAULT_EXTERNAL_DOMAIN,
@@ -139,10 +197,21 @@ export class NotificationService {
     const recipients = [...album.albumUsers.map((user) => user.user), owner].filter((user) => user.id !== senderId);
     const attachment = await this.getAlbumThumbnailAttachment(album);
 
-    const { server } = await this.configCore.getConfig();
+    const { server } = await this.configCore.getConfig({ withCache: false });
 
     for (const recipient of recipients) {
-      const { html, text } = this.notificationRepository.renderEmail({
+      const user = await this.userRepository.get(recipient.id, { withDeleted: false });
+      if (!user) {
+        continue;
+      }
+
+      const { emailNotifications } = getPreferences(user);
+
+      if (!emailNotifications.enabled || !emailNotifications.albumUpdate) {
+        continue;
+      }
+
+      const { html, text } = await this.notificationRepository.renderEmail({
         template: EmailTemplate.ALBUM_UPDATE,
         data: {
           baseUrl: server.externalDomain || DEFAULT_EXTERNAL_DOMAIN,
@@ -169,7 +238,7 @@ export class NotificationService {
   }
 
   async handleSendEmail(data: IEmailJob): Promise<JobStatus> {
-    const { notifications } = await this.configCore.getConfig();
+    const { notifications } = await this.configCore.getConfig({ withCache: false });
     if (!notifications.smtp.enabled) {
       return JobStatus.SKIPPED;
     }
@@ -200,14 +269,15 @@ export class NotificationService {
       return;
     }
 
-    const albumThumbnail = await this.assetRepository.getById(album.albumThumbnailAssetId);
-    if (!albumThumbnail?.thumbnailPath) {
+    const albumThumbnail = await this.assetRepository.getById(album.albumThumbnailAssetId, { files: true });
+    const { thumbnailFile } = getAssetFiles(albumThumbnail?.files);
+    if (!thumbnailFile) {
       return;
     }
 
     return {
-      filename: 'album-thumbnail.jpg',
-      path: albumThumbnail.thumbnailPath,
+      filename: `album-thumbnail${getFilenameExtension(thumbnailFile.path)}`,
+      path: thumbnailFile.path,
       cid: 'album-thumbnail',
     };
   }

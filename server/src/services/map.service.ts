@@ -1,12 +1,13 @@
 import { Inject } from '@nestjs/common';
 import { SystemConfigCore } from 'src/cores/system-config.core';
 import { AuthDto } from 'src/dtos/auth.dto';
-import { MapMarkerDto, MapMarkerResponseDto } from 'src/dtos/search.dto';
+import { MapMarkerDto, MapMarkerResponseDto, MapReverseGeocodeDto } from 'src/dtos/map.dto';
 import { IAlbumRepository } from 'src/interfaces/album.interface';
 import { ILoggerRepository } from 'src/interfaces/logger.interface';
 import { IMapRepository } from 'src/interfaces/map.interface';
 import { IPartnerRepository } from 'src/interfaces/partner.interface';
 import { ISystemMetadataRepository } from 'src/interfaces/system-metadata.interface';
+import { getMyPartnerIds } from 'src/utils/asset.util';
 
 export class MapService {
   private configCore: SystemConfigCore;
@@ -23,14 +24,10 @@ export class MapService {
   }
 
   async getMapMarkers(auth: AuthDto, options: MapMarkerDto): Promise<MapMarkerResponseDto[]> {
-    const userIds: string[] = [auth.user.id];
-    // TODO convert to SQL join
+    const userIds = [auth.user.id];
     if (options.withPartners) {
-      const partners = await this.partnerRepository.getAll(auth.user.id);
-      const partnersIds = partners
-        .filter((partner) => partner.sharedBy && partner.sharedWith && partner.sharedById != auth.user.id)
-        .map((partner) => partner.sharedById);
-      userIds.push(...partnersIds);
+      const partnerIds = await getMyPartnerIds({ userId: auth.user.id, repository: this.partnerRepository });
+      userIds.push(...partnerIds);
     }
 
     // TODO convert to SQL join
@@ -47,7 +44,7 @@ export class MapService {
   }
 
   async getMapStyle(theme: 'light' | 'dark') {
-    const { map } = await this.configCore.getConfig();
+    const { map } = await this.configCore.getConfig({ withCache: false });
     const styleUrl = theme === 'dark' ? map.darkStyle : map.lightStyle;
 
     if (styleUrl) {
@@ -55,5 +52,12 @@ export class MapService {
     }
 
     return JSON.parse(await this.systemMetadataRepository.readFile(`./resources/style-${theme}.json`));
+  }
+
+  async reverseGeocode(dto: MapReverseGeocodeDto) {
+    const { lat: latitude, lon: longitude } = dto;
+    // eventually this should probably return an array of results
+    const result = await this.mapRepository.reverseGeocode({ latitude, longitude });
+    return result ? [result] : [];
   }
 }

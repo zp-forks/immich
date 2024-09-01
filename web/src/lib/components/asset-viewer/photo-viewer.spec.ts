@@ -1,83 +1,87 @@
+import PhotoViewer from '$lib/components/asset-viewer/photo-viewer.svelte';
 import * as utils from '$lib/utils';
-import type { AssetResponseDto } from '@immich/sdk';
+import { AssetMediaSize } from '@immich/sdk';
 import { assetFactory } from '@test-data/factories/asset-factory';
-import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import type { Mock, MockInstance } from 'vitest';
-import PhotoViewer from './photo-viewer.svelte';
+import { sharedLinkFactory } from '@test-data/factories/shared-link-factory';
+import { render } from '@testing-library/svelte';
+import type { MockInstance } from 'vitest';
 
 vi.mock('$lib/utils', async (originalImport) => {
   const meta = await originalImport<typeof import('$lib/utils')>();
   return {
     ...meta,
-    downloadRequest: vi.fn(),
+    getAssetOriginalUrl: vi.fn(),
+    getAssetThumbnailUrl: vi.fn(),
   };
 });
 
 describe('PhotoViewer component', () => {
-  let downloadRequestMock: MockInstance;
-  let createObjectURLMock: Mock<[obj: Blob], string>;
-  let asset: AssetResponseDto;
+  let getAssetOriginalUrlSpy: MockInstance;
+  let getAssetThumbnailUrlSpy: MockInstance;
 
   beforeAll(() => {
-    downloadRequestMock = vi.spyOn(utils, 'downloadRequest').mockResolvedValue({
-      data: new Blob(),
-      status: 200,
-    });
-    createObjectURLMock = vi.fn();
-    window.URL.createObjectURL = createObjectURLMock;
-    asset = assetFactory.build({ originalPath: 'image.png' });
+    getAssetOriginalUrlSpy = vi.spyOn(utils, 'getAssetOriginalUrl');
+    getAssetThumbnailUrlSpy = vi.spyOn(utils, 'getAssetThumbnailUrl');
   });
 
-  afterAll(() => {
+  afterEach(() => {
     vi.resetAllMocks();
   });
 
-  it('initially shows a loading spinner', () => {
-    render(PhotoViewer, { asset });
-    expect(screen.getByRole('status')).toBeInTheDocument();
-  });
-
-  it('loads and shows a photo', async () => {
-    createObjectURLMock.mockReturnValueOnce('url-one');
+  it('loads the thumbnail', () => {
+    const asset = assetFactory.build({ originalPath: 'image.jpg', originalMimeType: 'image/jpeg' });
     render(PhotoViewer, { asset });
 
-    expect(downloadRequestMock).toBeCalledWith(
-      expect.objectContaining({
-        url: `/api/asset/file/${asset.id}?isThumb=false&isWeb=true&c=${asset.checksum}`,
-      }),
-    );
-    await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
-    expect(screen.getByRole('img')).toHaveAttribute('src', 'url-one');
+    expect(getAssetThumbnailUrlSpy).toBeCalledWith({
+      id: asset.id,
+      size: AssetMediaSize.Preview,
+      checksum: asset.checksum,
+    });
+    expect(getAssetOriginalUrlSpy).not.toBeCalled();
   });
 
-  it('loads high resolution photo when zoomed', async () => {
-    createObjectURLMock.mockReturnValueOnce('url-one');
+  it('loads the original image for gifs', () => {
+    const asset = assetFactory.build({ originalPath: 'image.gif', originalMimeType: 'image/gif' });
     render(PhotoViewer, { asset });
-    createObjectURLMock.mockReturnValueOnce('url-two');
 
-    await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
-    await fireEvent(window, new CustomEvent('zoomImage'));
-    await waitFor(() => expect(screen.getByRole('img')).toHaveAttribute('src', 'url-two'));
-    expect(downloadRequestMock).toBeCalledWith(
-      expect.objectContaining({
-        url: `/api/asset/file/${asset.id}?isThumb=false&isWeb=false&c=${asset.checksum}`,
-      }),
-    );
+    expect(getAssetThumbnailUrlSpy).not.toBeCalled();
+    expect(getAssetOriginalUrlSpy).toBeCalledWith({ id: asset.id, checksum: asset.checksum });
   });
 
-  it('reloads photo when checksum changes', async () => {
-    const { component } = render(PhotoViewer, { asset });
-    createObjectURLMock.mockReturnValueOnce('url-two');
+  it('loads original for shared link when download permission is true and showMetadata permission is true', () => {
+    const asset = assetFactory.build({ originalPath: 'image.gif', originalMimeType: 'image/gif' });
+    const sharedLink = sharedLinkFactory.build({ allowDownload: true, showMetadata: true, assets: [asset] });
+    render(PhotoViewer, { asset, sharedLink });
 
-    await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
-    component.$set({ asset: { ...asset, checksum: 'new-checksum' } });
+    expect(getAssetThumbnailUrlSpy).not.toBeCalled();
+    expect(getAssetOriginalUrlSpy).toBeCalledWith({ id: asset.id, checksum: asset.checksum });
+  });
 
-    await waitFor(() => expect(screen.getByRole('img')).toHaveAttribute('src', 'url-two'));
-    expect(downloadRequestMock).toBeCalledWith(
-      expect.objectContaining({
-        url: `/api/asset/file/${asset.id}?isThumb=false&isWeb=true&c=new-checksum`,
-      }),
-    );
+  it('not loads original image when shared link download permission is false', () => {
+    const asset = assetFactory.build({ originalPath: 'image.gif', originalMimeType: 'image/gif' });
+    const sharedLink = sharedLinkFactory.build({ allowDownload: false, assets: [asset] });
+    render(PhotoViewer, { asset, sharedLink });
+
+    expect(getAssetThumbnailUrlSpy).toBeCalledWith({
+      id: asset.id,
+      size: AssetMediaSize.Preview,
+      checksum: asset.checksum,
+    });
+
+    expect(getAssetOriginalUrlSpy).not.toBeCalled();
+  });
+
+  it('not loads original image when shared link showMetadata permission is false', () => {
+    const asset = assetFactory.build({ originalPath: 'image.gif', originalMimeType: 'image/gif' });
+    const sharedLink = sharedLinkFactory.build({ showMetadata: false, assets: [asset] });
+    render(PhotoViewer, { asset, sharedLink });
+
+    expect(getAssetThumbnailUrlSpy).toBeCalledWith({
+      id: asset.id,
+      size: AssetMediaSize.Preview,
+      checksum: asset.checksum,
+    });
+
+    expect(getAssetOriginalUrlSpy).not.toBeCalled();
   });
 });

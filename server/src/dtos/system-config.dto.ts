@@ -29,8 +29,9 @@ import {
   TranscodeHWAccel,
   TranscodePolicy,
   VideoCodec,
+  VideoContainer,
 } from 'src/config';
-import { CLIPConfig, DuplicateDetectionConfig, RecognitionConfig } from 'src/dtos/model-config.dto';
+import { CLIPConfig, DuplicateDetectionConfig, FacialRecognitionConfig } from 'src/dtos/model-config.dto';
 import { ConcurrentQueueName, QueueName } from 'src/interfaces/job.interface';
 import { ValidateBoolean, validateCronExpression } from 'src/validation';
 
@@ -78,6 +79,10 @@ export class SystemConfigFFmpegDto {
   @IsEnum(AudioCodec, { each: true })
   @ApiProperty({ enumName: 'AudioCodec', enum: AudioCodec, isArray: true })
   acceptedAudioCodecs!: AudioCodec[];
+
+  @IsEnum(VideoContainer, { each: true })
+  @ApiProperty({ enumName: 'VideoContainer', enum: VideoContainer, isArray: true })
+  acceptedContainers!: VideoContainer[];
 
   @IsString()
   targetResolution!: string;
@@ -270,10 +275,10 @@ class SystemConfigMachineLearningDto {
   @IsObject()
   duplicateDetection!: DuplicateDetectionConfig;
 
-  @Type(() => RecognitionConfig)
+  @Type(() => FacialRecognitionConfig)
   @ValidateNested()
   @IsObject()
-  facialRecognition!: RecognitionConfig;
+  facialRecognition!: FacialRecognitionConfig;
 }
 
 enum MapTheme {
@@ -350,6 +355,10 @@ class SystemConfigOAuthDto {
   signingAlgorithm!: string;
 
   @IsString()
+  @IsNotEmpty()
+  profileSigningAlgorithm!: string;
+
+  @IsString()
   storageLabelClaim!: string;
 
   @IsString()
@@ -367,7 +376,8 @@ class SystemConfigReverseGeocodingDto {
 }
 
 class SystemConfigServerDto {
-  @IsString()
+  @ValidateIf((_, value: string) => value !== '')
+  @IsUrl({ require_tld: false, require_protocol: true, protocols: ['http', 'https'] })
   externalDomain!: string;
 
   @IsString()
@@ -394,7 +404,7 @@ class SystemConfigSmtpTransportDto {
   password!: string;
 }
 
-class SystemConfigSmtpDto {
+export class SystemConfigSmtpDto {
   @IsBoolean()
   enabled!: boolean;
 

@@ -1,0 +1,18 @@
+on:
+  status
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.ORG_RELEASE_TOKEN }}
+
+      - name: Get the status
+        run: echo "The status is ${{ github.event.status }}"
+
+      - name: Error
+        run: exit 1

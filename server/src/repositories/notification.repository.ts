@@ -4,6 +4,7 @@ import { createTransport } from 'nodemailer';
 import React from 'react';
 import { AlbumInviteEmail } from 'src/emails/album-invite.email';
 import { AlbumUpdateEmail } from 'src/emails/album-update.email';
+import { TestEmail } from 'src/emails/test.email';
 import { WelcomeEmail } from 'src/emails/welcome.email';
 import { ILoggerRepository } from 'src/interfaces/logger.interface';
 import {
@@ -32,10 +33,10 @@ export class NotificationRepository implements INotificationRepository {
     }
   }
 
-  renderEmail(request: EmailRenderRequest): { html: string; text: string } {
+  async renderEmail(request: EmailRenderRequest): Promise<{ html: string; text: string }> {
     const component = this.render(request);
-    const html = render(component, { pretty: true });
-    const text = render(component, { plainText: true });
+    const html = await render(component, { pretty: true });
+    const text = await render(component, { plainText: true });
     return { html, text };
   }
 
@@ -58,6 +59,10 @@ export class NotificationRepository implements INotificationRepository {
 
   private render({ template, data }: EmailRenderRequest): React.FunctionComponentElement<any> {
     switch (template) {
+      case EmailTemplate.TEST_EMAIL: {
+        return React.createElement(TestEmail, data);
+      }
+
       case EmailTemplate.WELCOME: {
         return React.createElement(WelcomeEmail, data);
       }
@@ -84,6 +89,7 @@ export class NotificationRepository implements INotificationRepository {
               pass: options.password,
             }
           : undefined,
+      connectionTimeout: 5000,
     });
   }
 }

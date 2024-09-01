@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
-import { Theme } from '$lib/constants';
+import { Theme, defaultLang } from '$lib/constants';
+import { getPreferredLocale } from '$lib/utils/i18n';
 import { persisted } from 'svelte-local-storage-store';
 import { get } from 'svelte/store';
 
@@ -36,6 +37,14 @@ export const colorTheme = persisted<ThemeSetting>('color-theme', initialTheme, {
 
 // Locale to use for formatting dates, numbers, etc.
 export const locale = persisted<string | undefined>('locale', undefined, {
+  serializer: {
+    parse: (text) => text,
+    stringify: (object) => object ?? '',
+  },
+});
+
+const preferredLocale = browser ? getPreferredLocale() : undefined;
+export const lang = persisted<string>('lang', preferredLocale || defaultLang.code, {
   serializer: {
     parse: (text) => text,
     stringify: (object) => object ?? '',
@@ -86,11 +95,6 @@ export interface SidebarSettings {
   people: boolean;
   sharing: boolean;
 }
-
-export const sidebarSettings = persisted<SidebarSettings>('sidebar-settings-1', {
-  people: false,
-  sharing: true,
-});
 
 export enum SortOrder {
   Asc = 'asc',

@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { searchUsers, getPartners, type UserResponseDto } from '@immich/sdk';
+  import { searchUsers, getPartners, type UserResponseDto, PartnerDirection } from '@immich/sdk';
   import { createEventDispatcher, onMount } from 'svelte';
   import Button from '../elements/buttons/button.svelte';
   import UserAvatar from '../shared-components/user-avatar.svelte';
   import FullScreenModal from '$lib/components/shared-components/full-screen-modal.svelte';
+  import { t } from 'svelte-i18n';
 
   export let user: UserResponseDto;
   export let onClose: () => void;
@@ -20,7 +21,7 @@
     users = users.filter((_user) => _user.id !== user.id);
 
     // exclude partners from the list of users available for selection
-    const partners = await getPartners({ direction: 'shared-by' });
+    const partners = await getPartners({ direction: PartnerDirection.SharedBy });
     const partnerIds = new Set(partners.map((partner) => partner.id));
     availableUsers = users.filter((user) => !partnerIds.has(user.id));
   });
@@ -32,7 +33,7 @@
   };
 </script>
 
-<FullScreenModal id="partner-selection-modal" title="Add partner" showLogo {onClose}>
+<FullScreenModal title={$t('add_partner')} showLogo {onClose}>
   <div class="immich-scrollbar max-h-[300px] overflow-y-auto">
     {#if availableUsers.length > 0}
       {#each availableUsers as user}
@@ -62,13 +63,13 @@
       {/each}
     {:else}
       <p class="py-5 text-sm">
-        Looks like you shared your photos with all users or you don't have any user to share with.
+        {$t('photo_shared_all_users')}
       </p>
     {/if}
 
     {#if selectedUsers.length > 0}
       <div class="pt-5">
-        <Button size="sm" fullwidth on:click={() => dispatch('add-users', selectedUsers)}>Add</Button>
+        <Button size="sm" fullwidth on:click={() => dispatch('add-users', selectedUsers)}>{$t('add')}</Button>
       </div>
     {/if}
   </div>

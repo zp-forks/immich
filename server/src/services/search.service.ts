@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { SystemConfigCore } from 'src/cores/system-config.core';
-import { AssetResponseDto, mapAsset } from 'src/dtos/asset-response.dto';
+import { AssetMapOptions, AssetResponseDto, mapAsset } from 'src/dtos/asset-response.dto';
 import { AuthDto } from 'src/dtos/auth.dto';
 import { PersonResponseDto } from 'src/dtos/person.dto';
 import {
@@ -14,8 +14,8 @@ import {
   SmartSearchDto,
   mapPlaces,
 } from 'src/dtos/search.dto';
-import { AssetOrder } from 'src/entities/album.entity';
 import { AssetEntity } from 'src/entities/asset.entity';
+import { AssetOrder } from 'src/enum';
 import { IAssetRepository } from 'src/interfaces/asset.interface';
 import { ILoggerRepository } from 'src/interfaces/logger.interface';
 import { IMachineLearningRepository } from 'src/interfaces/machine-learning.interface';
@@ -24,6 +24,7 @@ import { IPartnerRepository } from 'src/interfaces/partner.interface';
 import { IPersonRepository } from 'src/interfaces/person.interface';
 import { ISearchRepository, SearchExploreItem } from 'src/interfaces/search.interface';
 import { ISystemMetadataRepository } from 'src/interfaces/system-metadata.interface';
+import { getMyPartnerIds } from 'src/utils/asset.util';
 import { isSmartSearchEnabled } from 'src/utils/misc';
 
 @Injectable()
@@ -91,23 +92,18 @@ export class SearchService {
       },
     );
 
-    return this.mapResponse(items, hasNextPage ? (page + 1).toString() : null);
+    return this.mapResponse(items, hasNextPage ? (page + 1).toString() : null, { auth });
   }
 
   async searchSmart(auth: AuthDto, dto: SmartSearchDto): Promise<SearchResponseDto> {
-    const { machineLearning } = await this.configCore.getConfig();
+    const { machineLearning } = await this.configCore.getConfig({ withCache: false });
     if (!isSmartSearchEnabled(machineLearning)) {
       throw new BadRequestException('Smart search is not enabled');
     }
 
     const userIds = await this.getUserIdsToSearch(auth);
 
-    const embedding = await this.machineLearning.encodeText(
-      machineLearning.url,
-      { text: dto.query },
-      machineLearning.clip,
-    );
-
+    const embedding = await this.machineLearning.encodeText(machineLearning.url, dto.query, machineLearning.clip);
     const page = dto.page ?? 1;
     const size = dto.size || 100;
     const { hasNextPage, items } = await this.searchRepository.searchSmart(
@@ -115,7 +111,7 @@ export class SearchService {
       { ...dto, userIds, embedding },
     );
 
-    return this.mapResponse(items, hasNextPage ? (page + 1).toString() : null);
+    return this.mapResponse(items, hasNextPage ? (page + 1).toString() : null, { auth });
   }
 
   async getAssetsByCity(auth: AuthDto): Promise<AssetResponseDto[]> {
@@ -124,43 +120,50 @@ export class SearchService {
     return assets.map((asset) => mapAsset(asset));
   }
 
-  getSearchSuggestions(auth: AuthDto, dto: SearchSuggestionRequestDto): Promise<string[]> {
+  async getSearchSuggestions(auth: AuthDto, dto: SearchSuggestionRequestDto) {
+    const results = await this.getSuggestions(auth.user.id, dto);
+    return results.filter((result) => (dto.includeNull ? true : result !== null));
+  }
+
+  private getSuggestions(userId: string, dto: SearchSuggestionRequestDto) {
     switch (dto.type) {
       case SearchSuggestionType.COUNTRY: {
-        return this.metadataRepository.getCountries(auth.user.id);
+        return this.metadataRepository.getCountries(userId);
       }
       case SearchSuggestionType.STATE: {
-        return this.metadataRepository.getStates(auth.user.id, dto.country);
+        return this.metadataRepository.getStates(userId, dto.country);
       }
       case SearchSuggestionType.CITY: {
-        return this.metadataRepository.getCities(auth.user.id, dto.country, dto.state);
+        return this.metadataRepository.getCities(userId, dto.country, dto.state);
       }
       case SearchSuggestionType.CAMERA_MAKE: {
-        return this.metadataRepository.getCameraMakes(auth.user.id, dto.model);
+        return this.metadataRepository.getCameraMakes(userId, dto.model);
       }
       case SearchSuggestionType.CAMERA_MODEL: {
-        return this.metadataRepository.getCameraModels(auth.user.id, dto.make);
+        return this.metadataRepository.getCameraModels(userId, dto.make);
+      }
+      default: {
+        return [];
       }
     }
   }
 
   private async getUserIdsToSearch(auth: AuthDto): Promise<string[]> {
-    const userIds: string[] = [auth.user.id];
-    const partners = await this.partnerRepository.getAll(auth.user.id);
-    const partnersIds = partners
-      .filter((partner) => partner.sharedBy && partner.inTimeline)
-      .map((partner) => partner.sharedById);
-    userIds.push(...partnersIds);
-    return userIds;
+    const partnerIds = await getMyPartnerIds({
+      userId: auth.user.id,
+      repository: this.partnerRepository,
+      timelineEnabled: true,
+    });
+    return [auth.user.id, ...partnerIds];
   }
 
-  private mapResponse(assets: AssetEntity[], nextPage: string | null): SearchResponseDto {
+  private mapResponse(assets: AssetEntity[], nextPage: string | null, options: AssetMapOptions): SearchResponseDto {
     return {
       albums: { total: 0, count: 0, items: [], facets: [] },
       assets: {
         total: assets.length,
         count: assets.length,
-        items: assets.map((asset) => mapAsset(asset)),
+        items: assets.map((asset) => mapAsset(asset, options)),
         facets: [],
         nextPage,
       },

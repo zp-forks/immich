@@ -1,9 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { groupBy, orderBy } from 'lodash-es';
-  import { addUsersToAlbum, deleteAlbum, type AlbumUserAddDto, type AlbumResponseDto } from '@immich/sdk';
+  import { addUsersToAlbum, deleteAlbum, type AlbumUserAddDto, type AlbumResponseDto, isHttpError } from '@immich/sdk';
   import { mdiDeleteOutline, mdiShareVariantOutline, mdiFolderDownloadOutline, mdiRenameOutline } from '@mdi/js';
-  import Icon from '$lib/components/elements/icon.svelte';
   import EditAlbumForm from '$lib/components/forms/edit-album-form.svelte';
   import CreateSharedLinkModal from '$lib/components/shared-components/create-share-link-modal/create-shared-link-modal.svelte';
   import {
@@ -18,7 +17,7 @@
   import { handleError } from '$lib/utils/handle-error';
   import { downloadAlbum } from '$lib/utils/asset-utils';
   import { normalizeSearchString } from '$lib/utils/string-utils';
-  import { getSelectedAlbumGroupOption, type AlbumGroup } from '$lib/utils/album-utils';
+  import { getSelectedAlbumGroupOption, type AlbumGroup, confirmAlbumDelete } from '$lib/utils/album-utils';
   import type { ContextMenuPosition } from '$lib/utils/context-menu';
   import { user } from '$lib/stores/user.store';
   import {
@@ -32,7 +31,7 @@
   } from '$lib/stores/preferences.store';
   import { goto } from '$app/navigation';
   import { AppRoute } from '$lib/constants';
-  import { dialogController } from '$lib/components/shared-components/dialog/dialog';
+  import { t } from 'svelte-i18n';
 
   export let ownedAlbums: AlbumResponseDto[] = [];
   export let sharedAlbums: AlbumResponseDto[] = [];
@@ -55,8 +54,8 @@
     [AlbumGroupBy.None]: (order, albums): AlbumGroup[] => {
       return [
         {
-          id: 'Albums',
-          name: 'Albums',
+          id: $t('albums'),
+          name: $t('albums'),
           albums,
         },
       ];
@@ -64,7 +63,7 @@
 
     /** Group by year */
     [AlbumGroupBy.Year]: (order, albums): AlbumGroup[] => {
-      const unknownYear = 'Unknown Year';
+      const unknownYear = $t('unknown_year');
       const useStartDate = userSettings.sortBy === AlbumSortBy.OldestPhoto;
 
       const groupedByYear = groupBy(albums, (album) => {
@@ -111,7 +110,7 @@
 
       return sortedByOwnerNames.map(([ownerId, albums]) => ({
         id: ownerId,
-        name: ownerId === currentUserId ? 'My albums' : albums[0].owner.name,
+        name: ownerId === currentUserId ? $t('my_albums') : albums[0].owner.name,
         albums,
       }));
     },
@@ -166,6 +165,7 @@
 
   let contextMenuPosition: ContextMenuPosition = { x: 0, y: 0 };
   let contextMenuTargetAlbum: AlbumResponseDto | null = null;
+  let isOpen = false;
 
   // Step 1: Filter between Owned and Shared albums, or both.
   $: {
@@ -223,7 +223,6 @@
     albumGroupIds = groupedAlbums.map(({ id }) => id);
   }
 
-  $: showContextMenu = !!contextMenuTargetAlbum;
   $: showFullContextMenu = allowEdit && contextMenuTargetAlbum && contextMenuTargetAlbum.ownerId === $user.id;
 
   onMount(async () => {
@@ -252,10 +251,11 @@
       x: contextMenuDetail.x,
       y: contextMenuDetail.y,
     };
+    isOpen = true;
   };
 
   const closeAlbumContextMenu = () => {
-    contextMenuTargetAlbum = null;
+    isOpen = false;
   };
 
   const handleDownloadAlbum = async () => {
@@ -267,9 +267,19 @@
   };
 
   const handleDeleteAlbum = async (albumToDelete: AlbumResponseDto) => {
-    await deleteAlbum({
-      id: albumToDelete.id,
-    });
+    try {
+      await deleteAlbum({
+        id: albumToDelete.id,
+      });
+    } catch (error) {
+      // In rare cases deleting an album completes after the list of albums has been requested,
+      // leading to a bad request error.
+      // Since the album is already deleted, the error is ignored.
+      const isBadRequest = isHttpError(error) && error.status === 400;
+      if (!isBadRequest) {
+        throw error;
+      }
+    }
 
     ownedAlbums = ownedAlbums.filter(({ id }) => id !== albumToDelete.id);
     sharedAlbums = sharedAlbums.filter(({ id }) => id !== albumToDelete.id);
@@ -291,10 +301,7 @@
       return;
     }
 
-    const isConfirmed = await dialogController.show({
-      id: 'delete-album',
-      prompt: `Are you sure you want to delete the album ${albumToDelete.albumName}?\nIf this album is shared, other users will not be able to access it anymore.`,
-    });
+    const isConfirmed = await confirmAlbumDelete(albumToDelete);
 
     if (!isConfirmed) {
       return;
@@ -304,7 +311,7 @@
       await handleDeleteAlbum(albumToDelete);
     } catch {
       notificationController.show({
-        message: 'Error deleting album',
+        message: $t('errors.unable_to_delete_album'),
         type: NotificationType.Error,
       });
     } finally {
@@ -326,10 +333,10 @@
     albumToEdit = null;
 
     notificationController.show({
-      message: 'Album info updated',
+      message: $t('album_info_updated'),
       type: NotificationType.Info,
       button: {
-        text: 'View Album',
+        text: $t('view_album'),
         onClick() {
           return goto(`${AppRoute.ALBUMS}/${album.id}`);
         },
@@ -352,7 +359,7 @@
       });
       updateAlbumInfo(album);
     } catch (error) {
-      handleError(error, 'Error adding users to album');
+      handleError(error, $t('errors.unable_to_add_album_users'));
     } finally {
       albumToShare = null;
     }
@@ -408,34 +415,18 @@
 {/if}
 
 <!-- Context Menu -->
-<RightClickContextMenu {...contextMenuPosition} isOpen={showContextMenu} onClose={closeAlbumContextMenu}>
+<RightClickContextMenu title={$t('album_options')} {...contextMenuPosition} {isOpen} onClose={closeAlbumContextMenu}>
   {#if showFullContextMenu}
-    <MenuOption on:click={() => contextMenuTargetAlbum && handleEdit(contextMenuTargetAlbum)}>
-      <p class="flex gap-2">
-        <Icon path={mdiRenameOutline} size="18" />
-        Edit
-      </p>
-    </MenuOption>
-    <MenuOption on:click={() => openShareModal()}>
-      <p class="flex gap-2">
-        <Icon path={mdiShareVariantOutline} size="18" />
-        Share
-      </p>
-    </MenuOption>
+    <MenuOption
+      icon={mdiRenameOutline}
+      text={$t('edit_album')}
+      onClick={() => contextMenuTargetAlbum && handleEdit(contextMenuTargetAlbum)}
+    />
+    <MenuOption icon={mdiShareVariantOutline} text={$t('share')} onClick={() => openShareModal()} />
   {/if}
-  <MenuOption on:click={() => handleDownloadAlbum()}>
-    <p class="flex gap-2">
-      <Icon path={mdiFolderDownloadOutline} size="18" />
-      Download
-    </p>
-  </MenuOption>
+  <MenuOption icon={mdiFolderDownloadOutline} text={$t('download')} onClick={() => handleDownloadAlbum()} />
   {#if showFullContextMenu}
-    <MenuOption on:click={() => setAlbumToDelete()}>
-      <p class="flex gap-2">
-        <Icon path={mdiDeleteOutline} size="18" />
-        Delete
-      </p>
-    </MenuOption>
+    <MenuOption icon={mdiDeleteOutline} text={$t('delete')} onClick={() => setAlbumToDelete()} />
   {/if}
 </RightClickContextMenu>
 

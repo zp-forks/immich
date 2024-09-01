@@ -31,18 +31,18 @@ class AssetResponseDto {
     this.livePhotoVideoId,
     required this.localDateTime,
     required this.originalFileName,
+    this.originalMimeType,
     required this.originalPath,
     this.owner,
     required this.ownerId,
     this.people = const [],
-    required this.resized,
+    this.resized,
     this.smartInfo,
-    this.stack = const [],
-    required this.stackCount,
-    this.stackParentId,
+    this.stack,
     this.tags = const [],
     required this.thumbhash,
     required this.type,
+    this.unassignedFaces = const [],
     required this.updatedAt,
   });
 
@@ -90,6 +90,14 @@ class AssetResponseDto {
 
   String originalFileName;
 
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? originalMimeType;
+
   String originalPath;
 
   ///
@@ -104,7 +112,14 @@ class AssetResponseDto {
 
   List<PersonWithFacesResponseDto> people;
 
-  bool resized;
+  /// This property was deprecated in v1.113.0
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? resized;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -114,17 +129,15 @@ class AssetResponseDto {
   ///
   SmartInfoResponseDto? smartInfo;
 
-  List<AssetResponseDto> stack;
-
-  int? stackCount;
-
-  String? stackParentId;
+  AssetStackResponseDto? stack;
 
   List<TagResponseDto> tags;
 
   String? thumbhash;
 
   AssetTypeEnum type;
+
+  List<AssetFaceWithoutPersonResponseDto> unassignedFaces;
 
   DateTime updatedAt;
 
@@ -148,18 +161,18 @@ class AssetResponseDto {
     other.livePhotoVideoId == livePhotoVideoId &&
     other.localDateTime == localDateTime &&
     other.originalFileName == originalFileName &&
+    other.originalMimeType == originalMimeType &&
     other.originalPath == originalPath &&
     other.owner == owner &&
     other.ownerId == ownerId &&
     _deepEquality.equals(other.people, people) &&
     other.resized == resized &&
     other.smartInfo == smartInfo &&
-    _deepEquality.equals(other.stack, stack) &&
-    other.stackCount == stackCount &&
-    other.stackParentId == stackParentId &&
+    other.stack == stack &&
     _deepEquality.equals(other.tags, tags) &&
     other.thumbhash == thumbhash &&
     other.type == type &&
+    _deepEquality.equals(other.unassignedFaces, unassignedFaces) &&
     other.updatedAt == updatedAt;
 
   @override
@@ -183,22 +196,22 @@ class AssetResponseDto {
     (livePhotoVideoId == null ? 0 : livePhotoVideoId!.hashCode) +
     (localDateTime.hashCode) +
     (originalFileName.hashCode) +
+    (originalMimeType == null ? 0 : originalMimeType!.hashCode) +
     (originalPath.hashCode) +
     (owner == null ? 0 : owner!.hashCode) +
     (ownerId.hashCode) +
     (people.hashCode) +
-    (resized.hashCode) +
+    (resized == null ? 0 : resized!.hashCode) +
     (smartInfo == null ? 0 : smartInfo!.hashCode) +
-    (stack.hashCode) +
-    (stackCount == null ? 0 : stackCount!.hashCode) +
-    (stackParentId == null ? 0 : stackParentId!.hashCode) +
+    (stack == null ? 0 : stack!.hashCode) +
     (tags.hashCode) +
     (thumbhash == null ? 0 : thumbhash!.hashCode) +
     (type.hashCode) +
+    (unassignedFaces.hashCode) +
     (updatedAt.hashCode);
 
   @override
-  String toString() => 'AssetResponseDto[checksum=$checksum, deviceAssetId=$deviceAssetId, deviceId=$deviceId, duplicateId=$duplicateId, duration=$duration, exifInfo=$exifInfo, fileCreatedAt=$fileCreatedAt, fileModifiedAt=$fileModifiedAt, hasMetadata=$hasMetadata, id=$id, isArchived=$isArchived, isFavorite=$isFavorite, isOffline=$isOffline, isTrashed=$isTrashed, libraryId=$libraryId, livePhotoVideoId=$livePhotoVideoId, localDateTime=$localDateTime, originalFileName=$originalFileName, originalPath=$originalPath, owner=$owner, ownerId=$ownerId, people=$people, resized=$resized, smartInfo=$smartInfo, stack=$stack, stackCount=$stackCount, stackParentId=$stackParentId, tags=$tags, thumbhash=$thumbhash, type=$type, updatedAt=$updatedAt]';
+  String toString() => 'AssetResponseDto[checksum=$checksum, deviceAssetId=$deviceAssetId, deviceId=$deviceId, duplicateId=$duplicateId, duration=$duration, exifInfo=$exifInfo, fileCreatedAt=$fileCreatedAt, fileModifiedAt=$fileModifiedAt, hasMetadata=$hasMetadata, id=$id, isArchived=$isArchived, isFavorite=$isFavorite, isOffline=$isOffline, isTrashed=$isTrashed, libraryId=$libraryId, livePhotoVideoId=$livePhotoVideoId, localDateTime=$localDateTime, originalFileName=$originalFileName, originalMimeType=$originalMimeType, originalPath=$originalPath, owner=$owner, ownerId=$ownerId, people=$people, resized=$resized, smartInfo=$smartInfo, stack=$stack, tags=$tags, thumbhash=$thumbhash, type=$type, unassignedFaces=$unassignedFaces, updatedAt=$updatedAt]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -236,6 +249,11 @@ class AssetResponseDto {
     }
       json[r'localDateTime'] = this.localDateTime.toUtc().toIso8601String();
       json[r'originalFileName'] = this.originalFileName;
+    if (this.originalMimeType != null) {
+      json[r'originalMimeType'] = this.originalMimeType;
+    } else {
+    //  json[r'originalMimeType'] = null;
+    }
       json[r'originalPath'] = this.originalPath;
     if (this.owner != null) {
       json[r'owner'] = this.owner;
@@ -244,22 +262,20 @@ class AssetResponseDto {
     }
       json[r'ownerId'] = this.ownerId;
       json[r'people'] = this.people;
+    if (this.resized != null) {
       json[r'resized'] = this.resized;
+    } else {
+    //  json[r'resized'] = null;
+    }
     if (this.smartInfo != null) {
       json[r'smartInfo'] = this.smartInfo;
     } else {
     //  json[r'smartInfo'] = null;
     }
+    if (this.stack != null) {
       json[r'stack'] = this.stack;
-    if (this.stackCount != null) {
-      json[r'stackCount'] = this.stackCount;
     } else {
-    //  json[r'stackCount'] = null;
-    }
-    if (this.stackParentId != null) {
-      json[r'stackParentId'] = this.stackParentId;
-    } else {
-    //  json[r'stackParentId'] = null;
+    //  json[r'stack'] = null;
     }
       json[r'tags'] = this.tags;
     if (this.thumbhash != null) {
@@ -268,6 +284,7 @@ class AssetResponseDto {
     //  json[r'thumbhash'] = null;
     }
       json[r'type'] = this.type;
+      json[r'unassignedFaces'] = this.unassignedFaces;
       json[r'updatedAt'] = this.updatedAt.toUtc().toIso8601String();
     return json;
   }
@@ -298,18 +315,18 @@ class AssetResponseDto {
         livePhotoVideoId: mapValueOfType<String>(json, r'livePhotoVideoId'),
         localDateTime: mapDateTime(json, r'localDateTime', r'')!,
         originalFileName: mapValueOfType<String>(json, r'originalFileName')!,
+        originalMimeType: mapValueOfType<String>(json, r'originalMimeType'),
         originalPath: mapValueOfType<String>(json, r'originalPath')!,
         owner: UserResponseDto.fromJson(json[r'owner']),
         ownerId: mapValueOfType<String>(json, r'ownerId')!,
         people: PersonWithFacesResponseDto.listFromJson(json[r'people']),
-        resized: mapValueOfType<bool>(json, r'resized')!,
+        resized: mapValueOfType<bool>(json, r'resized'),
         smartInfo: SmartInfoResponseDto.fromJson(json[r'smartInfo']),
-        stack: AssetResponseDto.listFromJson(json[r'stack']),
-        stackCount: mapValueOfType<int>(json, r'stackCount'),
-        stackParentId: mapValueOfType<String>(json, r'stackParentId'),
+        stack: AssetStackResponseDto.fromJson(json[r'stack']),
         tags: TagResponseDto.listFromJson(json[r'tags']),
         thumbhash: mapValueOfType<String>(json, r'thumbhash'),
         type: AssetTypeEnum.fromJson(json[r'type'])!,
+        unassignedFaces: AssetFaceWithoutPersonResponseDto.listFromJson(json[r'unassignedFaces']),
         updatedAt: mapDateTime(json, r'updatedAt', r'')!,
       );
     }
@@ -374,8 +391,6 @@ class AssetResponseDto {
     'originalFileName',
     'originalPath',
     'ownerId',
-    'resized',
-    'stackCount',
     'thumbhash',
     'type',
     'updatedAt',

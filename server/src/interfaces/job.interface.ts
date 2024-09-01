@@ -76,6 +76,7 @@ export enum JobName {
   LIBRARY_SCAN = 'library-refresh',
   LIBRARY_SCAN_ASSET = 'library-refresh-asset',
   LIBRARY_REMOVE_OFFLINE = 'library-remove-offline',
+  LIBRARY_CHECK_OFFLINE = 'library-check-offline',
   LIBRARY_DELETE = 'library-delete',
   LIBRARY_QUEUE_SCAN_ALL = 'library-queue-all-refresh',
   LIBRARY_QUEUE_CLEANUP = 'library-queue-cleanup',
@@ -110,6 +111,7 @@ export enum JobName {
 }
 
 export const JOBS_ASSET_PAGINATION_SIZE = 1000;
+export const JOBS_LIBRARY_PAGINATION_SIZE = 100_000;
 
 export interface IBaseJob {
   force?: boolean;
@@ -120,9 +122,18 @@ export interface IEntityJob extends IBaseJob {
   source?: 'upload' | 'sidecar-write' | 'copy';
 }
 
+export interface IAssetDeleteJob extends IEntityJob {
+  deleteOnDisk: boolean;
+}
+
 export interface ILibraryFileJob extends IEntityJob {
   ownerId: string;
   assetPath: string;
+}
+
+export interface ILibraryOfflineJob extends IEntityJob {
+  importPaths: string[];
+  exclusionPatterns: string[];
 }
 
 export interface ILibraryRefreshJob extends IEntityJob {
@@ -143,10 +154,16 @@ export interface ISidecarWriteJob extends IEntityJob {
   dateTimeOriginal?: string;
   latitude?: number;
   longitude?: number;
+  rating?: number;
+  tags?: true;
 }
 
 export interface IDeferrableJob extends IEntityJob {
   deferred?: boolean;
+}
+
+export interface INightlyJob extends IBaseJob {
+  nightly?: boolean;
 }
 
 export interface IEmailJob {
@@ -225,7 +242,7 @@ export type JobItem =
   // Facial Recognition
   | { name: JobName.QUEUE_FACE_DETECTION; data: IBaseJob }
   | { name: JobName.FACE_DETECTION; data: IEntityJob }
-  | { name: JobName.QUEUE_FACIAL_RECOGNITION; data: IBaseJob }
+  | { name: JobName.QUEUE_FACIAL_RECOGNITION; data: INightlyJob }
   | { name: JobName.FACIAL_RECOGNITION; data: IDeferrableJob }
   | { name: JobName.GENERATE_PERSON_THUMBNAIL; data: IEntityJob }
 
@@ -246,7 +263,7 @@ export type JobItem =
 
   // Asset Deletion
   | { name: JobName.PERSON_CLEANUP; data?: IBaseJob }
-  | { name: JobName.ASSET_DELETION; data: IEntityJob }
+  | { name: JobName.ASSET_DELETION; data: IAssetDeleteJob }
   | { name: JobName.ASSET_DELETION_CHECK; data?: IBaseJob }
 
   // Library Management
@@ -255,6 +272,7 @@ export type JobItem =
   | { name: JobName.LIBRARY_REMOVE_OFFLINE; data: IEntityJob }
   | { name: JobName.LIBRARY_DELETE; data: IEntityJob }
   | { name: JobName.LIBRARY_QUEUE_SCAN_ALL; data: IBaseJob }
+  | { name: JobName.LIBRARY_CHECK_OFFLINE; data: IEntityJob }
   | { name: JobName.LIBRARY_QUEUE_CLEANUP; data: IBaseJob }
 
   // Notification

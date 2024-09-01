@@ -38,6 +38,16 @@ const guides: CommunityGuidesProps[] = [
     description: 'Import your Google Photos files into Immich and add your albums',
     url: 'https://github.com/immich-app/immich/discussions/1340',
   },
+  {
+    title: 'Access Immich with custom domain',
+    description: 'Access your local Immich installation over the internet using your own domain',
+    url: 'https://github.com/ppr88/immich-guides/blob/main/open-immich-custom-domain.md',
+  },
+  {
+    title: 'Nginx caching map server',
+    description: 'Increase privacy by using nginx as a caching proxy in front of a map tile server',
+    url: 'https://github.com/pcouy/pcouy.github.io/blob/main/_posts/2024-08-30-proxying-a-map-tile-server-for-increased-privacy.md',
+  },
 ];
 
 function CommunityGuide({ title, description, url }: CommunityGuidesProps): JSX.Element {

@@ -3,7 +3,6 @@ import { AlbumService } from 'src/services/album.service';
 import { APIKeyService } from 'src/services/api-key.service';
 import { ApiService } from 'src/services/api.service';
 import { AssetMediaService } from 'src/services/asset-media.service';
-import { AssetServiceV1 } from 'src/services/asset-v1.service';
 import { AssetService } from 'src/services/asset.service';
 import { AuditService } from 'src/services/audit.service';
 import { AuthService } from 'src/services/auth.service';
@@ -22,10 +21,11 @@ import { NotificationService } from 'src/services/notification.service';
 import { PartnerService } from 'src/services/partner.service';
 import { PersonService } from 'src/services/person.service';
 import { SearchService } from 'src/services/search.service';
-import { ServerInfoService } from 'src/services/server-info.service';
+import { ServerService } from 'src/services/server.service';
 import { SessionService } from 'src/services/session.service';
 import { SharedLinkService } from 'src/services/shared-link.service';
 import { SmartInfoService } from 'src/services/smart-info.service';
+import { StackService } from 'src/services/stack.service';
 import { StorageTemplateService } from 'src/services/storage-template.service';
 import { StorageService } from 'src/services/storage.service';
 import { SyncService } from 'src/services/sync.service';
@@ -37,6 +37,7 @@ import { TrashService } from 'src/services/trash.service';
 import { UserAdminService } from 'src/services/user-admin.service';
 import { UserService } from 'src/services/user.service';
 import { VersionService } from 'src/services/version.service';
+import { ViewService } from 'src/services/view.service';
 
 export const services = [
   APIKeyService,
@@ -45,7 +46,6 @@ export const services = [
   ApiService,
   AssetMediaService,
   AssetService,
-  AssetServiceV1,
   AuditService,
   AuthService,
   CliService,
@@ -63,10 +63,11 @@ export const services = [
   PartnerService,
   PersonService,
   SearchService,
-  ServerInfoService,
+  ServerService,
   SessionService,
   SharedLinkService,
   SmartInfoService,
+  StackService,
   StorageService,
   StorageTemplateService,
   SyncService,
@@ -78,4 +79,5 @@ export const services = [
   UserAdminService,
   UserService,
   VersionService,
+  ViewService,
 ];

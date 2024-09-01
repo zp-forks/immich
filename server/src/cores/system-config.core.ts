@@ -7,7 +7,7 @@ import * as _ from 'lodash';
 import { Subject } from 'rxjs';
 import { SystemConfig, defaults } from 'src/config';
 import { SystemConfigDto } from 'src/dtos/system-config.dto';
-import { SystemMetadataKey } from 'src/entities/system-metadata.entity';
+import { SystemMetadataKey } from 'src/enum';
 import { DatabaseLock } from 'src/interfaces/database.interface';
 import { ILoggerRepository } from 'src/interfaces/logger.interface';
 import { ISystemMetadataRepository } from 'src/interfaces/system-metadata.interface';
@@ -42,8 +42,8 @@ export class SystemConfigCore {
     instance = null;
   }
 
-  async getConfig(force = false): Promise<SystemConfig> {
-    if (force || !this.config) {
+  async getConfig({ withCache }: { withCache: boolean }): Promise<SystemConfig> {
+    if (!withCache || !this.config) {
       const lastUpdated = this.lastUpdated;
       await this.asyncLock.acquire(DatabaseLock[DatabaseLock.GetSystemConfig], async () => {
         if (lastUpdated === this.lastUpdated) {
@@ -74,13 +74,13 @@ export class SystemConfigCore {
 
     await this.repository.set(SystemMetadataKey.SYSTEM_CONFIG, partialConfig);
 
-    const config = await this.getConfig(true);
+    const config = await this.getConfig({ withCache: false });
     this.config$.next(config);
     return config;
   }
 
   async refreshConfig() {
-    const newConfig = await this.getConfig(true);
+    const newConfig = await this.getConfig({ withCache: false });
     this.config$.next(newConfig);
   }
 

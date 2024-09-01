@@ -1,6 +1,6 @@
 import {
   AlbumResponseDto,
-  AssetFileUploadResponseDto,
+  AssetMediaResponseDto,
   LoginResponseDto,
   SharedLinkResponseDto,
   SharedLinkType,
@@ -15,8 +15,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 describe('/shared-links', () => {
   let admin: LoginResponseDto;
-  let asset1: AssetFileUploadResponseDto;
-  let asset2: AssetFileUploadResponseDto;
+  let asset1: AssetMediaResponseDto;
+  let asset2: AssetMediaResponseDto;
   let user1: LoginResponseDto;
   let user2: LoginResponseDto;
   let album: AlbumResponseDto;
@@ -111,6 +111,13 @@ describe('/shared-links', () => {
       expect(resp.status).toBe(200);
       expect(resp.header['content-type']).toContain('text/html');
       expect(resp.text).toContain(`<meta name="description" content="1 shared photos & videos" />`);
+    });
+
+    it('should have fqdn og:image meta tag for shared asset', async () => {
+      const resp = await request(shareUrl).get(`/${linkWithAssets.key}`);
+      expect(resp.status).toBe(200);
+      expect(resp.header['content-type']).toContain('text/html');
+      expect(resp.text).toContain(`<meta property="og:image" content="http://`);
     });
   });
 

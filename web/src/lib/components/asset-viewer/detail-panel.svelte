@@ -6,12 +6,11 @@
   import { boundingBoxesArray } from '$lib/stores/people.store';
   import { locale } from '$lib/stores/preferences.store';
   import { featureFlags } from '$lib/stores/server-config.store';
-  import { user } from '$lib/stores/user.store';
-  import { websocketEvents } from '$lib/stores/websocket';
+  import { preferences, user } from '$lib/stores/user.store';
   import { getAssetThumbnailUrl, getPeopleThumbnailUrl, handlePromiseError, isSharedLink } from '$lib/utils';
   import { delay, isFlipped } from '$lib/utils/asset-utils';
   import {
-    ThumbnailFormat,
+    AssetMediaSize,
     getAssetInfo,
     updateAsset,
     type AlbumResponseDto,
@@ -27,11 +26,12 @@
     mdiImageOutline,
     mdiInformationOutline,
     mdiPencil,
+    mdiAccountOff,
   } from '@mdi/js';
   import { DateTime } from 'luxon';
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
   import { slide } from 'svelte/transition';
-  import { asByteUnitString } from '$lib/utils/byte-units';
+  import { getByteUnitString } from '$lib/utils/byte-units';
   import { handleError } from '$lib/utils/handle-error';
   import ImageThumbnail from '../assets/thumbnail/image-thumbnail.svelte';
   import CircleIconButton from '../elements/buttons/circle-icon-button.svelte';
@@ -40,6 +40,10 @@
   import LoadingSpinner from '../shared-components/loading-spinner.svelte';
   import AlbumListItemDetails from './album-list-item-details.svelte';
   import DetailPanelDescription from '$lib/components/asset-viewer/detail-panel-description.svelte';
+  import DetailPanelRating from '$lib/components/asset-viewer/detail-panel-star-rating.svelte';
+  import { t } from 'svelte-i18n';
+  import { goto } from '$app/navigation';
+  import DetailPanelTags from '$lib/components/asset-viewer/detail-panel-tags.svelte';
 
   export let asset: AssetResponseDto;
   export let albums: AlbumResponseDto[] = [];
@@ -75,6 +79,7 @@
     if (newAsset.id && !isSharedLink()) {
       const data = await getAssetInfo({ id: asset.id });
       people = data?.people || [];
+      unassignedFaces = data?.unassignedFaces || [];
     }
   };
 
@@ -92,13 +97,7 @@
   $: people = asset.people || [];
   $: showingHiddenPeople = false;
 
-  onMount(() => {
-    return websocketEvents.on('on_asset_update', (assetUpdate) => {
-      if (assetUpdate.id === asset.id) {
-        asset = assetUpdate;
-      }
-    });
-  });
+  $: unassignedFaces = asset.unassignedFaces || [];
 
   const dispatch = createEventDispatcher<{
     close: void;
@@ -117,6 +116,7 @@
   const handleRefreshPeople = async () => {
     await getAssetInfo({ id: asset.id }).then((data) => {
       people = data?.people || [];
+      unassignedFaces = data?.unassignedFaces || [];
     });
     showEditFaces = false;
   };
@@ -130,25 +130,24 @@
     try {
       await updateAsset({ id: asset.id, updateAssetDto: { dateTimeOriginal } });
     } catch (error) {
-      handleError(error, 'Unable to change date');
+      handleError(error, $t('errors.unable_to_change_date'));
     }
   }
 </script>
 
 <section class="relative p-2 dark:bg-immich-dark-bg dark:text-immich-dark-fg">
   <div class="flex place-items-center gap-2">
-    <CircleIconButton icon={mdiClose} title="Close" on:click={() => dispatch('close')} />
-    <p class="text-lg text-immich-fg dark:text-immich-dark-fg">Info</p>
+    <CircleIconButton icon={mdiClose} title={$t('close')} on:click={() => dispatch('close')} />
+    <p class="text-lg text-immich-fg dark:text-immich-dark-fg">{$t('info')}</p>
   </div>
 
   {#if asset.isOffline}
     <section class="px-4 py-4">
       <div role="alert">
-        <div class="rounded-t bg-red-500 px-4 py-2 font-bold text-white">Asset offline</div>
+        <div class="rounded-t bg-red-500 px-4 py-2 font-bold text-white">{$t('asset_offline')}</div>
         <div class="rounded-b border border-t-0 border-red-400 bg-red-100 px-4 py-3 text-red-700">
           <p>
-            This asset is offline. Immich can not access its file location. Please ensure the asset is available and
-            then rescan the library.
+            {$t('asset_offline_description')}
           </p>
         </div>
       </div>
@@ -156,15 +155,25 @@
   {/if}
 
   <DetailPanelDescription {asset} {isOwner} />
+  <DetailPanelRating {asset} {isOwner} />
 
-  {#if !isSharedLink() && people.length > 0}
-    <section class="px-4 py-4 text-sm">
+  {#if (!isSharedLink() && unassignedFaces.length > 0) || people.length > 0}
+    <section class="px-4 pt-4 text-sm">
       <div class="flex h-10 w-full items-center justify-between">
-        <h2>PEOPLE</h2>
+        <h2>{$t('people').toUpperCase()}</h2>
         <div class="flex gap-2 items-center">
+          {#if unassignedFaces.length > 0}
+            <Icon
+              ariaLabel={$t('asset_has_unassigned_faces')}
+              title={$t('asset_has_unassigned_faces')}
+              color="currentColor"
+              path={mdiAccountOff}
+              size="24"
+            />
+          {/if}
           {#if people.some((person) => person.isHidden)}
             <CircleIconButton
-              title="Show hidden people"
+              title={$t('show_hidden_people')}
               icon={showingHiddenPeople ? mdiEyeOff : mdiEye}
               padding="1"
               buttonSize="32"
@@ -172,7 +181,7 @@
             />
           {/if}
           <CircleIconButton
-            title="Edit people"
+            title={$t('edit_people')}
             icon={mdiPencil}
             padding="1"
             size="20"
@@ -199,12 +208,11 @@
                 <ImageThumbnail
                   curve
                   shadow
-                  url={getPeopleThumbnailUrl(person.id)}
+                  url={getPeopleThumbnailUrl(person)}
                   altText={person.name}
                   title={person.name}
                   widthStyle="90px"
                   heightStyle="90px"
-                  thumbhash={null}
                   hidden={person.isHidden}
                 />
               </div>
@@ -228,11 +236,11 @@
                     )}
                   >
                     {#if ageInMonths <= 11}
-                      Age {ageInMonths} months
+                      {$t('age_months', { values: { months: ageInMonths } })}
                     {:else if ageInMonths > 12 && ageInMonths <= 23}
-                      Age 1 year, {ageInMonths - 12} months
+                      {$t('age_year_months', { values: { months: ageInMonths - 12 } })}
                     {:else}
-                      Age {age}
+                      {$t('age_years', { values: { years: age } })}
                     {/if}
                   </p>
                 {/if}
@@ -247,10 +255,10 @@
   <div class="px-4 py-4">
     {#if asset.exifInfo}
       <div class="flex h-10 w-full items-center justify-between text-sm">
-        <h2>DETAILS</h2>
+        <h2>{$t('details').toUpperCase()}</h2>
       </div>
     {:else}
-      <p class="text-sm">NO EXIF INFO AVAILABLE</p>
+      <p class="text-sm">{$t('no_exif_info_available').toUpperCase()}</p>
     {/if}
 
     {#if asset.exifInfo?.dateTimeOriginal}
@@ -261,7 +269,7 @@
         type="button"
         class="flex w-full text-left justify-between place-items-start gap-4 py-4"
         on:click={() => (isOwner ? (isShowChangeDate = true) : null)}
-        title={isOwner ? 'Edit date' : ''}
+        title={isOwner ? $t('edit_date') : ''}
         class:hover:dark:text-immich-dark-primary={isOwner}
         class:hover:text-immich-primary={isOwner}
       >
@@ -340,7 +348,7 @@
             {#if isOwner}
               <CircleIconButton
                 icon={mdiInformationOutline}
-                title="Show file location"
+                title={$t('show_file_location')}
                 size="16"
                 padding="2"
                 on:click={toggleAssetPath}
@@ -357,7 +365,7 @@
               {@const { width, height } = getDimensions(asset.exifInfo)}
               <p>{width} x {height}</p>
             {/if}
-            <p>{asByteUnitString(asset.exifInfo.fileSizeInByte, $locale)}</p>
+            <p>{getByteUnitString(asset.exifInfo.fileSizeInByte, $locale)}</p>
           </div>
           {#if showAssetPath}
             <p class="text-xs opacity-50 break-all" transition:slide={{ duration: 250 }}>
@@ -376,7 +384,7 @@
           <p>{asset.exifInfo.make || ''} {asset.exifInfo.model || ''}</p>
           <div class="flex gap-2 text-sm">
             {#if asset.exifInfo?.fNumber}
-              <p>{`ƒ/${asset.exifInfo.fNumber.toLocaleString($locale)}` || ''}</p>
+              <p>ƒ/{asset.exifInfo.fNumber.toLocaleString($locale)}</p>
             {/if}
 
             {#if asset.exifInfo.exposureTime}
@@ -424,20 +432,21 @@
           },
         ]}
         center={latlng}
-        zoom={15}
+        zoom={12.5}
         simplified
         useLocationPin
+        onOpenInMapView={() => goto(`${AppRoute.MAP}#12.5/${latlng.lat}/${latlng.lng}`)}
       >
         <svelte:fragment slot="popup" let:marker>
           {@const { lat, lon } = marker}
           <div class="flex flex-col items-center gap-1">
             <p class="font-bold">{lat.toPrecision(6)}, {lon.toPrecision(6)}</p>
             <a
-              href="https://www.openstreetmap.org/?mlat={lat}&mlon={lon}&zoom=15#map=15/{lat}/{lon}"
+              href="https://www.openstreetmap.org/?mlat={lat}&mlon={lon}&zoom=13#map=15/{lat}/{lon}"
               target="_blank"
               class="font-medium text-immich-primary"
             >
-              Open in OpenStreetMap
+              {$t('open_in_openstreetmap')}
             </a>
           </div>
         </svelte:fragment>
@@ -448,7 +457,7 @@
 
 {#if currentAlbum && currentAlbum.albumUsers.length > 0 && asset.owner}
   <section class="px-6 dark:text-immich-dark-fg mt-4">
-    <p class="text-sm">SHARED BY</p>
+    <p class="text-sm">{$t('shared_by').toUpperCase()}</p>
     <div class="flex gap-4 pt-4">
       <div>
         <UserAvatar user={asset.owner} size="md" />
@@ -464,17 +473,17 @@
 {/if}
 
 {#if albums.length > 0}
-  <section class="p-6 dark:text-immich-dark-fg">
-    <p class="pb-4 text-sm">APPEARS IN</p>
+  <section class="px-6 pt-6 dark:text-immich-dark-fg">
+    <p class="pb-4 text-sm">{$t('appears_in').toUpperCase()}</p>
     {#each albums as album}
       <a data-sveltekit-preload-data="hover" href={`/albums/${album.id}`}>
-        <div class="flex gap-4 py-2 hover:cursor-pointer items-center">
+        <div class="flex gap-4 pt-2 hover:cursor-pointer items-center">
           <div>
             <img
               alt={album.albumName}
               class="h-[50px] w-[50px] rounded object-cover"
               src={album.albumThumbnailAssetId &&
-                getAssetThumbnailUrl(album.albumThumbnailAssetId, ThumbnailFormat.Jpeg)}
+                getAssetThumbnailUrl({ id: album.albumThumbnailAssetId, size: AssetMediaSize.Preview })}
               draggable="false"
             />
           </div>
@@ -490,6 +499,12 @@
         </div>
       </a>
     {/each}
+  </section>
+{/if}
+
+{#if $preferences?.tags?.enabled}
+  <section class="relative px-2 pb-12 dark:bg-immich-dark-bg dark:text-immich-dark-fg">
+    <DetailPanelTags {asset} {isOwner} />
   </section>
 {/if}
 

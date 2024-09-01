@@ -39,7 +39,7 @@ class UserService {
 
   Future<List<User>?> _getAllUsers() async {
     try {
-      final dto = await _apiService.userApi.searchUsers();
+      final dto = await _apiService.usersApi.searchUsers();
       return dto?.map(User.fromSimpleUserDto).toList();
     } catch (e) {
       _log.warning("Failed get all users", e);
@@ -57,7 +57,7 @@ class UserService {
 
   Future<CreateProfileImageResponseDto?> uploadProfileImage(XFile image) async {
     try {
-      return await _apiService.userApi.createProfileImage(
+      return await _apiService.usersApi.createProfileImage(
         MultipartFile.fromBytes(
           'file',
           await image.readAsBytes(),
@@ -73,9 +73,9 @@ class UserService {
   Future<List<User>?> getUsersFromServer() async {
     final List<User>? users = await _getAllUsers();
     final List<User>? sharedBy =
-        await _partnerService.getPartners(PartnerDirection.sharedBy);
+        await _partnerService.getPartners(PartnerDirection.by);
     final List<User>? sharedWith =
-        await _partnerService.getPartners(PartnerDirection.sharedWith);
+        await _partnerService.getPartners(PartnerDirection.with_);
 
     if (users == null || sharedBy == null || sharedWith == null) {
       _log.warning("Failed to refresh users");

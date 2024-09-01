@@ -7,12 +7,14 @@ import {
   Action,
   AssetMediaStatus,
   checkBulkUpload,
+  getAssetOriginalPath,
   getBaseUrl,
   getSupportedMediaTypes,
-  type AssetFileUploadResponseDto,
   type AssetMediaResponseDto,
 } from '@immich/sdk';
 import { tick } from 'svelte';
+import { t } from 'svelte-i18n';
+import { get } from 'svelte/store';
 import { getServerErrorMessage, handleError } from './handle-error';
 
 let _extensions: string[];
@@ -31,8 +33,8 @@ type FileUploadParam = { multiple?: boolean } & (
   | { albumId?: string; assetId?: never }
   | { albumId?: never; assetId?: string }
 );
-export const openFileUploadDialog = async (options?: FileUploadParam) => {
-  const { albumId, multiple, assetId } = options || { multiple: true };
+export const openFileUploadDialog = async (options: FileUploadParam = {}) => {
+  const { albumId, multiple = true, assetId } = options;
   const extensions = await getExtensions();
 
   return new Promise<(string | undefined)[]>((resolve, reject) => {
@@ -40,7 +42,7 @@ export const openFileUploadDialog = async (options?: FileUploadParam) => {
       const fileSelector = document.createElement('input');
 
       fileSelector.type = 'file';
-      fileSelector.multiple = !!multiple;
+      fileSelector.multiple = multiple;
       fileSelector.accept = extensions.join(',');
       fileSelector.addEventListener('change', (e: Event) => {
         const target = e.target as HTMLInputElement;
@@ -83,6 +85,7 @@ function getDeviceAssetId(asset: File) {
 async function fileUploader(assetFile: File, albumId?: string, replaceAssetId?: string): Promise<string | undefined> {
   const fileCreatedAt = new Date(assetFile.lastModified).toISOString();
   const deviceAssetId = getDeviceAssetId(assetFile);
+  const $t = get(t);
 
   uploadAssetsStore.markStarted(deviceAssetId);
 
@@ -103,7 +106,7 @@ async function fileUploader(assetFile: File, albumId?: string, replaceAssetId?: 
     let responseData: AssetMediaResponseDto | undefined;
     const key = getKey();
     if (crypto?.subtle?.digest && !key) {
-      uploadAssetsStore.updateAsset(deviceAssetId, { message: 'Hashing...' });
+      uploadAssetsStore.updateAsset(deviceAssetId, { message: $t('asset_hashing') });
       await tick();
       try {
         const bytes = await assetFile.arrayBuffer();
@@ -123,57 +126,54 @@ async function fileUploader(assetFile: File, albumId?: string, replaceAssetId?: 
       }
     }
 
-    let status;
-    let id;
     if (!responseData) {
-      uploadAssetsStore.updateAsset(deviceAssetId, { message: 'Uploading...' });
+      uploadAssetsStore.updateAsset(deviceAssetId, { message: $t('asset_uploading') });
       if (replaceAssetId) {
         const response = await uploadRequest<AssetMediaResponseDto>({
-          url: getBaseUrl() + '/asset/' + replaceAssetId + '/file' + (key ? `?key=${key}` : ''),
+          url: getBaseUrl() + getAssetOriginalPath(replaceAssetId) + (key ? `?key=${key}` : ''),
           method: 'PUT',
           data: formData,
           onUploadProgress: (event) => uploadAssetsStore.updateProgress(deviceAssetId, event.loaded, event.total),
         });
-        ({ status, id } = response.data);
+        responseData = response.data;
       } else {
-        const response = await uploadRequest<AssetFileUploadResponseDto>({
-          url: getBaseUrl() + '/asset/upload' + (key ? `?key=${key}` : ''),
+        const response = await uploadRequest<AssetMediaResponseDto>({
+          url: getBaseUrl() + '/assets' + (key ? `?key=${key}` : ''),
           data: formData,
           onUploadProgress: (event) => uploadAssetsStore.updateProgress(deviceAssetId, event.loaded, event.total),
         });
+
         if (![200, 201].includes(response.status)) {
-          throw new Error('Failed to upload file');
+          throw new Error($t('errors.unable_to_upload_file'));
         }
-        if (response.data.duplicate) {
-          status = AssetMediaStatus.Duplicate;
-        } else {
-          id = response.data.id;
-        }
+
+        responseData = response.data;
       }
     }
 
-    if (status === AssetMediaStatus.Duplicate) {
+    if (responseData.status === AssetMediaStatus.Duplicate) {
       uploadAssetsStore.duplicateCounter.update((count) => count + 1);
     } else {
       uploadAssetsStore.successCounter.update((c) => c + 1);
-      if (albumId && id) {
-        uploadAssetsStore.updateAsset(deviceAssetId, { message: 'Adding to album...' });
-        await addAssetsToAlbum(albumId, [id]);
-        uploadAssetsStore.updateAsset(deviceAssetId, { message: 'Added to album' });
-      }
+    }
+
+    if (albumId) {
+      uploadAssetsStore.updateAsset(deviceAssetId, { message: $t('asset_adding_to_album') });
+      await addAssetsToAlbum(albumId, [responseData.id], false);
+      uploadAssetsStore.updateAsset(deviceAssetId, { message: $t('asset_added_to_album') });
     }
 
     uploadAssetsStore.updateAsset(deviceAssetId, {
-      state: status === AssetMediaStatus.Duplicate ? UploadState.DUPLICATED : UploadState.DONE,
+      state: responseData.status === AssetMediaStatus.Duplicate ? UploadState.DUPLICATED : UploadState.DONE,
     });
 
     setTimeout(() => {
       uploadAssetsStore.removeUploadAsset(deviceAssetId);
     }, 1000);
 
-    return id;
+    return responseData.id;
   } catch (error) {
-    handleError(error, 'Unable to upload file');
+    handleError(error, $t('errors.unable_to_upload_file'));
     const reason = getServerErrorMessage(error) || error;
     uploadAssetsStore.updateAsset(deviceAssetId, { state: UploadState.ERROR, error: reason });
     return;

@@ -8,7 +8,8 @@
   import { uploadExecutionQueue } from '$lib/utils/file-uploader';
   import CircleIconButton from '../elements/buttons/circle-icon-button.svelte';
   import { mdiCog, mdiWindowMinimize, mdiCancel, mdiCloudUploadOutline } from '@mdi/js';
-  import { s } from '$lib/utils';
+  import { t } from 'svelte-i18n';
+  import { locale } from '$lib/stores/preferences.store';
 
   let showDetail = false;
   let showOptions = false;
@@ -27,7 +28,9 @@
     }
   };
 
-  $: $isUploading && autoHide();
+  $: if ($isUploading) {
+    autoHide();
+  }
 </script>
 
 {#if $hasError || $isUploading}
@@ -37,24 +40,24 @@
     on:outroend={() => {
       if ($errorCounter > 0) {
         notificationController.show({
-          message: `Upload completed with ${$errorCounter} error${s($errorCounter)}, refresh the page to see new upload assets.`,
+          message: $t('upload_errors', { values: { count: $errorCounter } }),
           type: NotificationType.Warning,
         });
       } else if ($successCounter > 0) {
         notificationController.show({
-          message: 'Upload success, refresh the page to see new upload assets.',
+          message: $t('upload_success'),
           type: NotificationType.Info,
         });
       }
       if ($duplicateCounter > 0) {
         notificationController.show({
-          message: `Skipped ${$duplicateCounter} duplicate asset${s($duplicateCounter)}`,
+          message: $t('upload_skipped_duplicates', { values: { count: $duplicateCounter } }),
           type: NotificationType.Warning,
         });
       }
       uploadAssetsStore.resetStore();
     }}
-    class="absolute bottom-6 right-6 z-[10000]"
+    class="fixed bottom-6 right-6 z-[10000]"
   >
     {#if showDetail}
       <div
@@ -64,25 +67,36 @@
         <div class="place-item-center mb-4 flex justify-between">
           <div class="flex flex-col gap-1">
             <p class="immich-form-label text-xm">
-              Remaining {$remainingUploads} - Processed {$successCounter + $errorCounter}/{$totalUploadCounter}
+              {$t('upload_progress', {
+                values: {
+                  remaining: $remainingUploads,
+                  processed: $successCounter + $errorCounter,
+                  total: $totalUploadCounter,
+                },
+              })}
             </p>
             <p class="immich-form-label text-xs">
-              Uploaded <span class="text-immich-success">{$successCounter}</span> - Error
-              <span class="text-immich-error">{$errorCounter}</span>
-              - Duplicates <span class="text-immich-warning">{$duplicateCounter}</span>
+              {$t('upload_status_uploaded')}
+              <span class="text-immich-success">{$successCounter.toLocaleString($locale)}</span>
+              -
+              {$t('upload_status_errors')}
+              <span class="text-immich-error">{$errorCounter.toLocaleString($locale)}</span>
+              -
+              {$t('upload_status_duplicates')}
+              <span class="text-immich-warning">{$duplicateCounter.toLocaleString($locale)}</span>
             </p>
           </div>
           <div class="flex flex-col items-end">
             <div class="flex flex-row">
               <CircleIconButton
-                title="Toggle settings"
+                title={$t('toggle_settings')}
                 icon={mdiCog}
                 size="14"
                 padding="1"
                 on:click={() => (showOptions = !showOptions)}
               />
               <CircleIconButton
-                title="Minimize"
+                title={$t('minimize')}
                 icon={mdiWindowMinimize}
                 size="14"
                 padding="1"
@@ -91,7 +105,7 @@
             </div>
             {#if $hasError}
               <CircleIconButton
-                title="Dismiss all errors"
+                title={$t('dismiss_all_errors')}
                 icon={mdiCancel}
                 size="14"
                 padding="1"
@@ -103,13 +117,13 @@
         {#if showOptions}
           <div class="immich-scrollbar mb-4 max-h-[400px] overflow-y-auto rounded-lg pr-2">
             <div class="flex h-[26px] place-items-center gap-1">
-              <label class="immich-form-label" for="upload-concurrency">Upload concurrency</label>
+              <label class="immich-form-label" for="upload-concurrency">{$t('upload_concurrency')}</label>
             </div>
             <input
               class="immich-form-input w-full"
-              aria-labelledby="Upload concurrency"
+              aria-labelledby={$t('upload_concurrency')}
               id="upload-concurrency"
-              name="Upload concurrency"
+              name={$t('upload_concurrency')}
               type="number"
               min="1"
               max="50"
@@ -133,7 +147,7 @@
           on:click={() => (showDetail = true)}
           class="absolute -left-4 -top-4 flex h-10 w-10 place-content-center place-items-center rounded-full bg-immich-primary p-5 text-xs text-gray-200"
         >
-          {$remainingUploads}
+          {$remainingUploads.toLocaleString($locale)}
         </button>
         {#if $hasError}
           <button
@@ -142,7 +156,7 @@
             on:click={() => (showDetail = true)}
             class="absolute -right-4 -top-4 flex h-10 w-10 place-content-center place-items-center rounded-full bg-immich-error p-5 text-xs text-gray-200"
           >
-            {$errorCounter}
+            {$errorCounter.toLocaleString($locale)}
           </button>
         {/if}
         <button
